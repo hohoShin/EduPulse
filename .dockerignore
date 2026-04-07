@@ -1,0 +1,12 @@
+.venv
+__pycache__
+*.pyc
+.git
+.github
+node_modules
+edupulse/data/raw/
+*.egg-info
+.pytest_cache
+.omc/
+docs/
+notebooks/

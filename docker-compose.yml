@@ -1,0 +1,40 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: edupulse
+      POSTGRES_USER: edupulse
+      POSTGRES_PASSWORD: edupulse
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U edupulse -d edupulse"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: .
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://edupulse:edupulse@db:5432/edupulse
+      API_HOST: "0.0.0.0"
+      API_PORT: "8000"
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    # Person B가 프론트엔드 빌드 결과물을 /usr/share/nginx/html에 마운트할 예정
+    # volumes:
+    #   - ./frontend/dist:/usr/share/nginx/html:ro
+
+volumes:
+  postgres_data:
