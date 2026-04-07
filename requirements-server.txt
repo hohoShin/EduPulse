@@ -1,0 +1,5 @@
+-r requirements.txt
+# prophet: stretch goal로만 설치 (pip install prophet)
+# torch 미포함: LSTM은 MacBook에서 학습 후 scp 전송
+# jupyter, 시각화 미포함: 서버에서 불필요
+# 이 파일은 requirements.txt와 동일하지만 명시적 분리를 위해 유지

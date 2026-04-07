@@ -1,0 +1,20 @@
+[project]
+name = "edupulse"
+version = "0.1.0"
+description = "AI-based course enrollment demand forecasting"
+requires-python = ">=3.11,<3.13"
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["edupulse*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.black]
+line-length = 88
+target-version = ["py311"]

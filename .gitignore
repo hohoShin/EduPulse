@@ -1,29 +1,60 @@
 # Python
-.venv
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
 
 # IDE
-.idea
-.DS_Store
-
-# Claude / OMC
-.claude/
-.omc/
+.idea/
+.vscode/
+*.swp
+*.swo
 
 # Environment
 .env
+.env.local
 
-# Data files
-data/raw/
-data/processed/
-data/warehouse/
+# Data (raw 데이터는 git에 올리지 않음)
+edupulse/data/raw/
+edupulse/data/processed/
+edupulse/data/warehouse/
 *.csv
 *.parquet
 
-# Model weights
-model/saved/**/*.pt
-model/saved/**/*.pkl
+# Model artifacts
+edupulse/model/saved/**/*.pkl
+edupulse/model/saved/**/*.joblib
+edupulse/model/saved/**/*.pt
+edupulse/model/saved/**/*.json
+!edupulse/model/saved/**/.gitkeep
 
-# Frontend
-node_modules/
+# Alembic
+alembic/versions/__pycache__/
+
+# Node.js / Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.env.local
+
+# Docker
+*.log
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# omc / claude
+.omc/
+.claude/
