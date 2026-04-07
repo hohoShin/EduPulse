@@ -154,6 +154,66 @@ API_PORT=8000
 
 ---
 
+## Git Rules
+
+### Branch Strategy
+
+- `main` — production-ready code only
+- `dev` — integration branch for development
+- Feature branches from `dev`, merge back to `dev` via PR
+
+| Prefix | Usage | Example |
+|---|---|---|
+| `feat/` | New feature (frontend + backend 포함 가능) | `feat/demand-api` |
+| `fix/` | Bug fix | `fix/prophet-date-format` |
+| `data/` | Data collection, preprocessing | `data/job-crawler` |
+| `model/` | Model training, tuning | `model/lstm-tuning` |
+
+### Commit Message Format
+
+```
+<prefix>: <short summary>
+
+<optional body — explain why, not what>
+```
+
+**Prefixes:** `feat:`, `fix:`, `data:`, `model:`, `docs:`, `refactor:`, `test:`, `chore:`
+
+### Commit Rules
+
+- Summary line under 72 characters
+- One logical change per commit — do not mix unrelated changes
+- Never commit `.env`, API keys, model weight files (`*.pt`, `*.pkl`), or large data files
+- Always verify `git diff` before committing
+
+### PR & Merge Rules
+
+- All merges to `main` must go through a PR
+- PR title follows the same prefix convention as commit messages
+- Squash merge for feature branches to keep `main` history clean
+- Delete the branch after merge
+
+### .gitignore Essentials
+
+Ensure the following are always excluded:
+
+```
+.env
+__pycache__/
+*.pyc
+model/saved/**/*.pt
+model/saved/**/*.pkl
+data/raw/
+data/processed/
+data/warehouse/
+*.csv
+*.parquet
+node_modules/
+.DS_Store
+```
+
+---
+
 ## Environment Strategy — Local vs. Server
 
 Two separate environments are used. Keep their roles clearly separated.

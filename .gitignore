@@ -1,4 +1,29 @@
+# Python
 .venv
+__pycache__/
+*.pyc
+
+# IDE
 .idea
+.DS_Store
+
+# Claude / OMC
 .claude/
 .omc/
+
+# Environment
+.env
+
+# Data files
+data/raw/
+data/processed/
+data/warehouse/
+*.csv
+*.parquet
+
+# Model weights
+model/saved/**/*.pt
+model/saved/**/*.pkl
+
+# Frontend
+node_modules/
