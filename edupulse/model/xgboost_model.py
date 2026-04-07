@@ -1,0 +1,156 @@
+"""XGBoost 수요 예측 모델 래퍼."""
+import os
+from pathlib import Path
+
+import joblib
+import numpy as np
+import pandas as pd
+from sklearn.model_selection import TimeSeriesSplit
+from xgboost import XGBRegressor
+
+from edupulse.constants import classify_demand
+from edupulse.model.base import BaseForecaster, PredictionResult
+
+FEATURE_COLUMNS = [
+    "lag_1w",
+    "lag_2w",
+    "lag_4w",
+    "lag_8w",
+    "rolling_mean_4w",
+    "month_sin",
+    "month_cos",
+    "search_volume",
+    "job_count",
+]
+TARGET_COLUMN = "enrollment_count"
+
+
+class XGBoostForecaster(BaseForecaster):
+    """XGBoost 기반 수강 수요 예측 모델."""
+
+    def __init__(self):
+        super().__init__()
+        self._model: XGBRegressor | None = None
+        self._mape: float | None = None
+
+    def train(self, df: pd.DataFrame) -> None:
+        """feature/target 분리 후 XGBRegressor 학습.
+
+        Args:
+            df: feature_columns + target_column을 포함한 DataFrame
+        """
+        available = [c for c in FEATURE_COLUMNS if c in df.columns]
+        X = df[available].fillna(0)
+        y = df[TARGET_COLUMN]
+
+        self._model = XGBRegressor(
+            n_estimators=200,
+            max_depth=4,
+            learning_rate=0.05,
+            subsample=0.8,
+            colsample_bytree=0.8,
+            random_state=42,
+            n_jobs=-1,
+        )
+        self._model.fit(X, y)
+
+    def _predict(self, features: pd.DataFrame) -> PredictionResult:
+        """xgb 예측 → classify_demand() → PredictionResult 반환.
+
+        Args:
+            features: feature_columns에 해당하는 DataFrame (1행 이상)
+        """
+        if self._model is None:
+            raise RuntimeError("Model not trained or loaded. Call train() or load() first.")
+
+        available = [c for c in FEATURE_COLUMNS if c in features.columns]
+        X = features[available].fillna(0)
+        raw_pred = float(self._model.predict(X)[0])
+        predicted_enrollment = max(0, round(raw_pred))
+
+        demand_tier = classify_demand(predicted_enrollment)
+
+        # confidence interval: 예측값 ± (MAPE * 예측값) 근사
+        margin = (self._mape / 100.0 * raw_pred) if self._mape else (raw_pred * 0.15)
+        confidence_lower = max(0.0, round(raw_pred - margin, 1))
+        confidence_upper = round(raw_pred + margin, 1)
+
+        return PredictionResult(
+            predicted_enrollment=predicted_enrollment,
+            demand_tier=demand_tier,
+            confidence_lower=confidence_lower,
+            confidence_upper=confidence_upper,
+            model_used="xgboost",
+            mape=self._mape,
+        )
+
+    def evaluate(self, df: pd.DataFrame, n_splits: int = 5) -> dict:
+        """TimeSeriesSplit K-Fold 교차검증. MAPE 반환.
+
+        Args:
+            df: feature_columns + target_column을 포함한 DataFrame
+            n_splits: K-Fold 분할 수
+
+        Returns:
+            {'mape': float, 'n_splits': int}
+        """
+        available = [c for c in FEATURE_COLUMNS if c in df.columns]
+        X = df[available].fillna(0).values
+        y = df[TARGET_COLUMN].values
+
+        tscv = TimeSeriesSplit(n_splits=n_splits)
+        mapes = []
+
+        for train_idx, val_idx in tscv.split(X):
+            X_train, X_val = X[train_idx], X[val_idx]
+            y_train, y_val = y[train_idx], y[val_idx]
+
+            model = XGBRegressor(
+                n_estimators=200,
+                max_depth=4,
+                learning_rate=0.05,
+                subsample=0.8,
+                colsample_bytree=0.8,
+                random_state=42,
+                n_jobs=-1,
+            )
+            model.fit(X_train, y_train)
+            preds = model.predict(X_val)
+
+            # 0 나누기 방지
+            nonzero = y_val != 0
+            if nonzero.any():
+                fold_mape = float(np.mean(np.abs((y_val[nonzero] - preds[nonzero]) / y_val[nonzero])) * 100)
+                mapes.append(fold_mape)
+
+        avg_mape = float(np.mean(mapes)) if mapes else float("nan")
+        self._mape = avg_mape
+        return {"mape": avg_mape, "n_splits": n_splits}
+
+    def save(self, path: str, version: int) -> None:
+        """모델을 joblib으로 직렬화 저장.
+
+        Args:
+            path: 저장 루트 경로 (예: edupulse/model/saved/xgboost)
+            version: 버전 번호
+        """
+        save_dir = Path(path) / f"v{version}"
+        save_dir.mkdir(parents=True, exist_ok=True)
+        joblib.dump(
+            {"model": self._model, "mape": self._mape},
+            save_dir / "model.joblib",
+        )
+
+    def load(self, path: str, version: int) -> None:
+        """저장된 모델을 joblib으로 로딩.
+
+        Args:
+            path: 저장 루트 경로 (예: edupulse/model/saved/xgboost)
+            version: 버전 번호
+        """
+        model_path = Path(path) / f"v{version}" / "model.joblib"
+        if not model_path.exists():
+            raise FileNotFoundError(f"Model file not found: {model_path}")
+        data = joblib.load(model_path)
+        self._model = data["model"]
+        self._mape = data.get("mape")
