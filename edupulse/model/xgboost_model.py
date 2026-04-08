@@ -12,16 +12,24 @@ from edupulse.constants import classify_demand
 from edupulse.model.base import BaseForecaster, PredictionResult
 
 FEATURE_COLUMNS = [
-    "lag_1w",
-    "lag_2w",
-    "lag_4w",
-    "lag_8w",
-    "rolling_mean_4w",
-    "month_sin",
-    "month_cos",
-    "search_volume",
-    "job_count",
-    "field_encoded",
+    # --- Existing (10) ---
+    "lag_1w", "lag_2w", "lag_4w", "lag_8w",
+    "rolling_mean_4w", "month_sin", "month_cos",
+    "search_volume", "job_count", "field_encoded",
+    # --- New: Internal data (5) ---
+    "consultation_count",
+    "conversion_rate",
+    "page_views",
+    "cart_abandon_rate",
+    "age_group_diversity",
+    # --- New: External data (7) ---
+    "has_cert_exam",
+    "weeks_to_exam",
+    "competitor_openings",
+    "competitor_avg_price",
+    "is_vacation",
+    "is_exam_season",
+    "is_semester_start",
 ]
 TARGET_COLUMN = "enrollment_count"
 

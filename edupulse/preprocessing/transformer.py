@@ -59,6 +59,12 @@ def add_lag_features(
     if "field" in df.columns:
         df["field_encoded"] = df["field"].astype("category").cat.codes
 
+    # age_group_diversity: Shannon entropy of age ratios
+    if all(c in df.columns for c in ["age_20s_ratio", "age_30s_ratio", "age_40plus_ratio"]):
+        age_cols = df[["age_20s_ratio", "age_30s_ratio", "age_40plus_ratio"]].values
+        eps = 1e-10
+        df["age_group_diversity"] = -np.sum(age_cols * np.log(age_cols + eps), axis=1)
+
     return df
 
 

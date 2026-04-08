@@ -24,6 +24,12 @@ FIELD_ENCODING = {"art": 0, "coding": 1, "game": 2, "security": 3}
 _ENROLLMENT_PATH = "edupulse/data/raw/internal/enrollment_history.csv"
 _SEARCH_TRENDS_PATH = "edupulse/data/raw/external/search_trends.csv"
 _JOB_POSTINGS_PATH = "edupulse/data/raw/external/job_postings.csv"
+_CONSULTATION_PATH = "edupulse/data/raw/internal/consultation_logs.csv"
+_STUDENT_PROFILES_PATH = "edupulse/data/raw/internal/student_profiles.csv"
+_WEB_LOGS_PATH = "edupulse/data/raw/internal/web_logs.csv"
+_CERT_EXAM_PATH = "edupulse/data/raw/external/cert_exam_schedule.csv"
+_COMPETITOR_PATH = "edupulse/data/raw/external/competitor_data.csv"
+_SEASONAL_PATH = "edupulse/data/raw/external/seasonal_events.csv"
 
 # 모듈 레벨 모델 캐시 (직접 로딩 전략 — api.dependencies.MODEL_REGISTRY와 별도)
 _model_cache: dict[str, BaseForecaster] = {}
@@ -212,6 +218,100 @@ def _build_features(course_name: str, start_date: str, field: str) -> pd.DataFra
         except Exception as e:
             logger.warning("채용 공고 로딩 실패, job_count=0 사용: %s", e)
 
+    # --- 6) consultation_count, conversion_rate (consultation_logs.csv) ---
+    consultation_count = 0.0
+    conversion_rate = 0.0
+    if os.path.exists(_CONSULTATION_PATH):
+        try:
+            consult_df = pd.read_csv(_CONSULTATION_PATH)
+            consult_df["date"] = pd.to_datetime(consult_df["date"])
+            field_consult = consult_df[consult_df["field"] == field].sort_values("date")
+            prior_consult = field_consult[field_consult["date"] < target_date]
+            if len(prior_consult) >= 1:
+                consultation_count = float(prior_consult.iloc[-1]["consultation_count"])
+                conversion_rate = float(prior_consult.iloc[-1]["conversion_rate"])
+        except Exception as e:
+            logger.warning("상담 로그 로딩 실패, consultation=0 사용: %s", e)
+
+    # --- 7) age_group_diversity (student_profiles.csv) ---
+    age_group_diversity = 0.0
+    if os.path.exists(_STUDENT_PROFILES_PATH):
+        try:
+            profile_df = pd.read_csv(_STUDENT_PROFILES_PATH)
+            profile_df["date"] = pd.to_datetime(profile_df["date"])
+            field_profile = profile_df[profile_df["field"] == field].sort_values("date")
+            prior_profile = field_profile[field_profile["date"] < target_date]
+            if len(prior_profile) >= 1:
+                row_p = prior_profile.iloc[-1]
+                age_cols = [row_p.get("age_20s_ratio", 0.0), row_p.get("age_30s_ratio", 0.0), row_p.get("age_40plus_ratio", 0.0)]
+                import numpy as _np
+                eps = 1e-10
+                age_arr = _np.array(age_cols, dtype=float)
+                age_group_diversity = float(-_np.sum(age_arr * _np.log(age_arr + eps)))
+        except Exception as e:
+            logger.warning("학생 프로필 로딩 실패, age_group_diversity=0 사용: %s", e)
+
+    # --- 8) page_views, cart_abandon_rate (web_logs.csv) ---
+    page_views = 0.0
+    cart_abandon_rate = 0.0
+    if os.path.exists(_WEB_LOGS_PATH):
+        try:
+            web_df = pd.read_csv(_WEB_LOGS_PATH)
+            web_df["date"] = pd.to_datetime(web_df["date"])
+            field_web = web_df[web_df["field"] == field].sort_values("date")
+            prior_web = field_web[field_web["date"] < target_date]
+            if len(prior_web) >= 1:
+                page_views = float(prior_web.iloc[-1]["page_views"])
+                cart_abandon_rate = float(prior_web.iloc[-1]["cart_abandon_rate"])
+        except Exception as e:
+            logger.warning("웹 로그 로딩 실패, page_views=0 사용: %s", e)
+
+    # --- 9) has_cert_exam, weeks_to_exam (cert_exam_schedule.csv) ---
+    has_cert_exam = 0
+    weeks_to_exam = 0.0
+    if os.path.exists(_CERT_EXAM_PATH):
+        try:
+            cert_df = pd.read_csv(_CERT_EXAM_PATH)
+            cert_df["date"] = pd.to_datetime(cert_df["date"])
+            field_cert = cert_df[cert_df["field"] == field].sort_values("date")
+            prior_cert = field_cert[field_cert["date"] < target_date]
+            if len(prior_cert) >= 1:
+                has_cert_exam = int(prior_cert.iloc[-1]["has_cert_exam"])
+                weeks_to_exam = float(prior_cert.iloc[-1]["weeks_to_exam"])
+        except Exception as e:
+            logger.warning("자격증 일정 로딩 실패, cert=0 사용: %s", e)
+
+    # --- 10) competitor_openings, competitor_avg_price (competitor_data.csv) ---
+    competitor_openings = 0.0
+    competitor_avg_price = 0.0
+    if os.path.exists(_COMPETITOR_PATH):
+        try:
+            comp_df = pd.read_csv(_COMPETITOR_PATH)
+            comp_df["date"] = pd.to_datetime(comp_df["date"])
+            field_comp = comp_df[comp_df["field"] == field].sort_values("date")
+            prior_comp = field_comp[field_comp["date"] < target_date]
+            if len(prior_comp) >= 1:
+                competitor_openings = float(prior_comp.iloc[-1]["competitor_openings"])
+                competitor_avg_price = float(prior_comp.iloc[-1]["competitor_avg_price"])
+        except Exception as e:
+            logger.warning("경쟁사 데이터 로딩 실패, competitor=0 사용: %s", e)
+
+    # --- 11) is_vacation, is_exam_season, is_semester_start (seasonal_events.csv) ---
+    is_vacation = 0
+    is_exam_season = 0
+    is_semester_start = 0
+    if os.path.exists(_SEASONAL_PATH):
+        try:
+            seasonal_df = pd.read_csv(_SEASONAL_PATH)
+            seasonal_df["date"] = pd.to_datetime(seasonal_df["date"])
+            prior_seasonal = seasonal_df[seasonal_df["date"] < target_date].sort_values("date")
+            if len(prior_seasonal) >= 1:
+                is_vacation = int(prior_seasonal.iloc[-1]["is_vacation"])
+                is_exam_season = int(prior_seasonal.iloc[-1]["is_exam_season"])
+                is_semester_start = int(prior_seasonal.iloc[-1]["is_semester_start"])
+        except Exception as e:
+            logger.warning("계절 이벤트 로딩 실패, seasonal=0 사용: %s", e)
+
     # --- 조립 ---
     row = {
         "date": start_date,
@@ -225,6 +325,18 @@ def _build_features(course_name: str, start_date: str, field: str) -> pd.DataFra
         "search_volume": search_volume,
         "job_count": job_count,
         "field_encoded": field_encoded,
+        "consultation_count": consultation_count,
+        "conversion_rate": conversion_rate,
+        "page_views": page_views,
+        "cart_abandon_rate": cart_abandon_rate,
+        "age_group_diversity": age_group_diversity,
+        "has_cert_exam": has_cert_exam,
+        "weeks_to_exam": weeks_to_exam,
+        "competitor_openings": competitor_openings,
+        "competitor_avg_price": competitor_avg_price,
+        "is_vacation": is_vacation,
+        "is_exam_season": is_exam_season,
+        "is_semester_start": is_semester_start,
     }
 
     return pd.DataFrame([row])
@@ -235,7 +347,7 @@ def predict_demand(
     start_date: str,
     field: str,
     model_name: str = "ensemble",
-    version: int = 1,
+    version: int = 2,
 ) -> PredictionResult:
     """API에서 호출하는 수요 예측 진입점.
 

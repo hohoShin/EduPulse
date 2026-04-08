@@ -32,6 +32,18 @@ def _make_training_df(n=100):
         "enrollment_count": counts,
         "search_volume": [c * 1.5 for c in counts],
         "job_count": [c * 2.0 for c in counts],
+        "consultation_count": rng.integers(0, 30, size=n).tolist(),
+        "conversion_rate": rng.uniform(0.05, 0.65, size=n).tolist(),
+        "page_views": rng.integers(10, 200, size=n).tolist(),
+        "cart_abandon_rate": rng.uniform(0.2, 0.95, size=n).tolist(),
+        "age_group_diversity": rng.uniform(0.5, 1.1, size=n).tolist(),
+        "has_cert_exam": rng.choice([0, 1], size=n).tolist(),
+        "weeks_to_exam": rng.integers(0, 27, size=n).tolist(),
+        "competitor_openings": rng.integers(0, 15, size=n).tolist(),
+        "competitor_avg_price": rng.integers(300000, 800000, size=n).tolist(),
+        "is_vacation": rng.choice([0, 1], size=n).tolist(),
+        "is_exam_season": rng.choice([0, 1], size=n).tolist(),
+        "is_semester_start": rng.choice([0, 1], size=n).tolist(),
     })
     df = add_lag_features(df, target_col="enrollment_count")
     return df
@@ -191,9 +203,10 @@ def test_augment_sequences():
     from edupulse.model.lstm_model import (
         _augment_sequences, AUGMENTABLE_FEATURES, PROTECTED_FEATURES,
     )
+    from edupulse.model.xgboost_model import FEATURE_COLUMNS
 
     rng = np.random.default_rng(0)
-    n_seq, seq_len, n_feat = 20, 12, 10
+    n_seq, seq_len, n_feat = 20, 12, len(FEATURE_COLUMNS)
     xs = rng.random((n_seq, seq_len, n_feat)).astype(np.float32)
     ys = rng.random(n_seq).astype(np.float32)
 

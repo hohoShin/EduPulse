@@ -153,12 +153,13 @@ def _build_sequences_per_field(
     return np.concatenate(all_xs), np.concatenate(all_ys)
 
 
-# 증강 대상 피처 인덱스 (연속값만 — 순환 인코딩/카테고리 제외)
-# lag_1w(0), lag_2w(1), lag_4w(2), lag_8w(3), rolling_mean_4w(4),
-# search_volume(7), job_count(8)
-AUGMENTABLE_FEATURES = [0, 1, 2, 3, 4, 7, 8]
-# month_sin(5), month_cos(6), field_encoded(9) — 절대 변형하지 않음
-PROTECTED_FEATURES = [5, 6, 9]
+# 증강 대상 피처 인덱스: 이름 기반으로 동적 계산 (하드코딩 인덱스 사용 금지)
+_PROTECTED_NAMES = {
+    "month_sin", "month_cos", "field_encoded",
+    "has_cert_exam", "is_vacation", "is_exam_season", "is_semester_start",
+}
+PROTECTED_FEATURES = [i for i, c in enumerate(FEATURE_COLUMNS) if c in _PROTECTED_NAMES]
+AUGMENTABLE_FEATURES = [i for i, c in enumerate(FEATURE_COLUMNS) if c not in _PROTECTED_NAMES]
 
 
 def _augment_sequences(

@@ -344,13 +344,19 @@ pytest tests/test_demand.py -v
 
 ### 생성되는 데이터 경로
 
-| 단계 | 경로 | 내용 |
-|---|---|---|
-| 합성 데이터 | `edupulse/data/raw/internal/enrollment_history.csv` | 수강 이력 |
-| 합성 데이터 | `edupulse/data/raw/external/search_trends.csv` | 검색 트렌드 |
-| 합성 데이터 | `edupulse/data/raw/external/job_postings.csv` | 채용 공고 |
-| 전처리 | `edupulse/data/warehouse/training_dataset.csv` | 학습용 최종 데이터셋 |
-| 모델 저장 | `edupulse/model/saved/{모델명}/v{버전}/` | 학습된 모델 파일 |
+| 단계 | 경로 | 내용 | 상태 |
+|---|---|---|---|
+| 합성 데이터 | `edupulse/data/raw/internal/enrollment_history.csv` | 수강 이력 | 합성 생성기 구현 완료 |
+| 합성 데이터 | `edupulse/data/raw/internal/consultation_logs.csv` | 상담 로그 | 합성 생성기 구현 완료 |
+| 합성 데이터 | `edupulse/data/raw/internal/student_profiles.csv` | 학생 프로필 | 합성 생성기 구현 완료 |
+| 합성 데이터 | `edupulse/data/raw/internal/web_logs.csv` | 웹/앱 로그 | 합성 생성기 구현 완료 |
+| 합성 데이터 | `edupulse/data/raw/external/search_trends.csv` | 검색 트렌드 | 합성 생성기 구현 완료 |
+| 합성 데이터 | `edupulse/data/raw/external/job_postings.csv` | 채용 공고 | 합성 생성기 구현 완료 |
+| 합성 데이터 | `edupulse/data/raw/external/cert_exam_schedule.csv` | 자격증 시험 일정 | 합성 생성기 구현 완료 |
+| 합성 데이터 | `edupulse/data/raw/external/competitor_data.csv` | 경쟁 학원 데이터 | 합성 생성기 구현 완료 |
+| 합성 데이터 | `edupulse/data/raw/external/seasonal_events.csv` | 계절성 이벤트 | 합성 생성기 구현 완료 |
+| 전처리 | `edupulse/data/warehouse/training_dataset.csv` | 학습용 최종 데이터셋 | |
+| 모델 저장 | `edupulse/model/saved/{모델명}/v{버전}/` | 학습된 모델 파일 | |
 
 ---
 
