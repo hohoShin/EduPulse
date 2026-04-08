@@ -32,21 +32,32 @@ def add_lag_features(
     if date_col:
         df[date_col] = pd.to_datetime(df[date_col])
 
-    # lag features (주 단위 → 행 단위 shift)
+    # lag features (분야별 groupby로 경계 넘김 방지)
     if target_col in df.columns:
-        for lag in lags:
-            df[f"lag_{lag}w"] = df[target_col].shift(lag)
-
-        # 4주 이동평균
-        df["rolling_mean_4w"] = (
-            df[target_col].rolling(window=4, min_periods=1).mean()
-        )
+        if "field" in df.columns:
+            for lag in lags:
+                df[f"lag_{lag}w"] = df.groupby("field")[target_col].shift(lag)
+            df["rolling_mean_4w"] = (
+                df.groupby("field")[target_col]
+                .rolling(window=4, min_periods=1).mean()
+                .reset_index(level=0, drop=True)
+            )
+        else:
+            for lag in lags:
+                df[f"lag_{lag}w"] = df[target_col].shift(lag)
+            df["rolling_mean_4w"] = (
+                df[target_col].rolling(window=4, min_periods=1).mean()
+            )
 
     # 순환 인코딩 (month_sin, month_cos)
     if date_col and pd.api.types.is_datetime64_any_dtype(df[date_col]):
         month = df[date_col].dt.month
         df["month_sin"] = np.sin(2 * np.pi * month / 12)
         df["month_cos"] = np.cos(2 * np.pi * month / 12)
+
+    # 분야 label encoding
+    if "field" in df.columns:
+        df["field_encoded"] = df["field"].astype("category").cat.codes
 
     return df
 

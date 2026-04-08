@@ -20,14 +20,15 @@ except ImportError:
     _TORCH_AVAILABLE = False
 
 
-def _make_training_df(n=30):
+def _make_training_df(n=100):
     """테스트용 학습 데이터 DataFrame 생성 (lag feature 포함)."""
     import numpy as np
     rng = np.random.default_rng(42)
-    dates = pd.date_range("2024-01-01", periods=n, freq="2W")
-    counts = rng.integers(5, 35, size=n).tolist()
+    dates = pd.date_range("2021-01-04", periods=n, freq="W-MON")
+    counts = rng.integers(1, 10, size=n).tolist()
     df = pd.DataFrame({
         "date": dates.strftime("%Y-%m-%d"),
+        "field": ["coding"] * n,
         "enrollment_count": counts,
         "search_volume": [c * 1.5 for c in counts],
         "job_count": [c * 2.0 for c in counts],
@@ -38,7 +39,7 @@ def _make_training_df(n=30):
 
 def test_xgboost_train_predict():
     """XGBoost 학습 후 predict()가 유효한 PredictionResult를 반환해야 한다."""
-    df = _make_training_df(n=30)
+    df = _make_training_df(n=100)
     model = XGBoostForecaster()
     model.train(df)
 
@@ -90,7 +91,7 @@ def test_prophet_train_predict():
     """Prophet 학습 후 predict()가 유효한 PredictionResult를 반환해야 한다."""
     from edupulse.model.prophet_model import ProphetForecaster
 
-    df = _make_training_df(n=40)
+    df = _make_training_df(n=100)
     model = ProphetForecaster()
     model.train(df)
 
@@ -109,7 +110,7 @@ def test_lstm_train_predict():
     """LSTM 학습 후 predict()가 유효한 PredictionResult를 반환해야 한다."""
     from edupulse.model.lstm_model import LSTMForecaster
 
-    df = _make_training_df(n=30)
+    df = _make_training_df(n=100)
     model = LSTMForecaster()
     model.train(df, epochs=5)
 
@@ -127,7 +128,7 @@ def test_ensemble_predict():
     """앙상블이 XGBoost 단독으로도 유효한 PredictionResult를 반환해야 한다 (1개 모델 fallback)."""
     from edupulse.model.ensemble import EnsembleForecaster
 
-    df = _make_training_df(n=30)
+    df = _make_training_df(n=100)
     xgb = XGBoostForecaster()
     xgb.train(df)
 
@@ -148,7 +149,7 @@ def test_model_comparison():
     """XGBoost, Prophet(설치 시), LSTM(설치 시) MAPE를 비교하고 30% 초과 시 경고를 출력한다."""
     import math
 
-    df = _make_training_df(n=40)
+    df = _make_training_df(n=100)
     results: dict[str, float] = {}
 
     # XGBoost (항상)
@@ -179,3 +180,52 @@ def test_model_comparison():
     # 최소 XGBoost 결과는 있어야 함
     assert "xgboost" in results
     assert not math.isnan(results["xgboost"])
+
+
+def test_augment_sequences():
+    """_augment_sequences가 feature-aware하게 동작하는지 검증한다."""
+    if not _TORCH_AVAILABLE:
+        pytest.skip("PyTorch 미설치")
+
+    import numpy as np
+    from edupulse.model.lstm_model import (
+        _augment_sequences, AUGMENTABLE_FEATURES, PROTECTED_FEATURES,
+    )
+
+    rng = np.random.default_rng(0)
+    n_seq, seq_len, n_feat = 20, 12, 10
+    xs = rng.random((n_seq, seq_len, n_feat)).astype(np.float32)
+    ys = rng.random(n_seq).astype(np.float32)
+
+    aug_xs, aug_ys = _augment_sequences(xs, ys, n_augments=2, seed=99)
+
+    # 출력 크기: 원본 + 2 증강 = 3배
+    assert aug_xs.shape == (n_seq * 3, seq_len, n_feat)
+    assert aug_ys.shape == (n_seq * 3,)
+
+    # 원본은 그대로 보존
+    np.testing.assert_array_equal(aug_xs[:n_seq], xs)
+    np.testing.assert_array_equal(aug_ys[:n_seq], ys)
+
+    # Protected features (month_sin, month_cos, field_encoded)는 불변
+    for i in range(1, 3):  # 증강 복사본 1, 2
+        start = i * n_seq
+        end = start + n_seq
+        for feat_idx in PROTECTED_FEATURES:
+            np.testing.assert_array_equal(
+                aug_xs[start:end, :, feat_idx],
+                xs[:, :, feat_idx],
+                err_msg=f"Protected feature {feat_idx} was modified in augment {i}",
+            )
+
+    # Augmentable features는 변형됨
+    for i in range(1, 3):
+        start = i * n_seq
+        end = start + n_seq
+        diff = np.abs(aug_xs[start:end, :, AUGMENTABLE_FEATURES] - xs[:, :, AUGMENTABLE_FEATURES])
+        assert diff.sum() > 0, f"Augmentable features unchanged in augment {i}"
+
+    # 동일 seed → 동일 결과 (결정론적)
+    aug_xs2, aug_ys2 = _augment_sequences(xs, ys, n_augments=2, seed=99)
+    np.testing.assert_array_equal(aug_xs, aug_xs2)
+    np.testing.assert_array_equal(aug_ys, aug_ys2)

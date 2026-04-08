@@ -3,12 +3,12 @@ from enum import Enum
 
 
 class DemandTier(str, Enum):
-    HIGH = "High"    # >= 25명
-    MID = "Mid"      # >= 12명
-    LOW = "Low"      # < 12명
+    HIGH = "High"    # >= 6명 (주간 기준)
+    MID = "Mid"      # >= 3명 (주간 기준)
+    LOW = "Low"      # < 3명 (주간 기준)
 
 
-DEMAND_THRESHOLDS = {"high": 25, "mid": 12}
+DEMAND_THRESHOLDS = {"high": 6, "mid": 3}
 
 
 def classify_demand(predicted_count: int) -> DemandTier:

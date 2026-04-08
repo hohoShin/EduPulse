@@ -1,6 +1,6 @@
 """데이터 병합 모듈.
 
-내부(enrollment) + 외부(search_trends, job_postings) 데이터를 날짜 기준으로 병합.
+내부(enrollment) + 외부(search_trends, job_postings) 데이터를 [field, date] 기준으로 병합.
 """
 import os
 import pandas as pd
@@ -12,12 +12,12 @@ def merge_datasets(
     job_df: pd.DataFrame | None = None,
     date_col: str = "date",
 ) -> pd.DataFrame:
-    """내부 수강 데이터와 외부 데이터를 [field, cohort] 기준 left join으로 병합.
+    """내부 수강 데이터와 외부 데이터를 [field, date] 기준 left join으로 병합.
 
     Args:
-        enrollment_df: 수강 이력 DataFrame. field, cohort 컬럼 필수.
-        search_df: 검색 트렌드 DataFrame (optional). field, cohort, search_volume 필요.
-        job_df: 채용 공고 DataFrame (optional). field, cohort, job_count 필요.
+        enrollment_df: 수강 이력 DataFrame. field, date 컬럼 필수.
+        search_df: 검색 트렌드 DataFrame (optional). field, date, search_volume 필요.
+        job_df: 채용 공고 DataFrame (optional). field, date, job_count 필요.
         date_col: 날짜 컬럼명 (datetime 변환용).
 
     Returns:
@@ -25,31 +25,24 @@ def merge_datasets(
     """
     merged = enrollment_df.copy()
     merged[date_col] = pd.to_datetime(merged[date_col])
+    # 주간 정렬: 날짜를 주 시작일(월요일)로 정규화
+    merged[date_col] = merged[date_col].dt.to_period("W").dt.start_time
 
-    join_keys = ["field", "cohort"]
+    join_keys = ["field", date_col]
 
     if search_df is not None and not search_df.empty:
-        if all(k in search_df.columns for k in join_keys):
-            search_cols = search_df[join_keys + ["search_volume"]].copy()
-            merged = merged.merge(search_cols, on=join_keys, how="left")
-        else:
-            # fallback: date 기준 merge
-            search_df = search_df.copy()
-            search_df[date_col] = pd.to_datetime(search_df[date_col])
-            merged = merged.merge(
-                search_df[[date_col, "search_volume"]], on=date_col, how="left",
-            )
+        search_df = search_df.copy()
+        search_df[date_col] = pd.to_datetime(search_df[date_col])
+        search_df[date_col] = search_df[date_col].dt.to_period("W").dt.start_time
+        search_cols = search_df[join_keys + ["search_volume"]].copy()
+        merged = merged.merge(search_cols, on=join_keys, how="left")
 
     if job_df is not None and not job_df.empty:
-        if all(k in job_df.columns for k in join_keys):
-            job_cols = job_df[join_keys + ["job_count"]].copy()
-            merged = merged.merge(job_cols, on=join_keys, how="left")
-        else:
-            job_df = job_df.copy()
-            job_df[date_col] = pd.to_datetime(job_df[date_col])
-            merged = merged.merge(
-                job_df[[date_col, "job_count"]], on=date_col, how="left",
-            )
+        job_df = job_df.copy()
+        job_df[date_col] = pd.to_datetime(job_df[date_col])
+        job_df[date_col] = job_df[date_col].dt.to_period("W").dt.start_time
+        job_cols = job_df[join_keys + ["job_count"]].copy()
+        merged = merged.merge(job_cols, on=join_keys, how="left")
 
     # 병합 후 결측치 forward fill
     numeric_cols = merged.select_dtypes(include="number").columns

@@ -19,14 +19,14 @@ INTERNAL_DIR = Path("edupulse/data/raw/internal")
 EXTERNAL_DIR = Path("edupulse/data/raw/external")
 
 
-def run(n_cohorts: int = 24, start_year: int = 2024) -> None:
+def run(n_years: int = 8, start_year: int = 2018) -> None:
     """합성 데이터 전체 생성 및 저장."""
     INTERNAL_DIR.mkdir(parents=True, exist_ok=True)
     EXTERNAL_DIR.mkdir(parents=True, exist_ok=True)
 
     # 1. 수강 이력 생성
     print("1. 수강 이력 생성 중...")
-    enrollment_df = generate_enrollment_history(n_cohorts=n_cohorts, start_year=start_year)
+    enrollment_df = generate_enrollment_history(n_years=n_years, start_year=start_year)
     enrollment_path = INTERNAL_DIR / "enrollment_history.csv"
     enrollment_df.to_csv(enrollment_path, index=False)
     print(f"   저장: {enrollment_path} ({len(enrollment_df)}행)")

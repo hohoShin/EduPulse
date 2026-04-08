@@ -21,6 +21,7 @@ FEATURE_COLUMNS = [
     "month_cos",
     "search_volume",
     "job_count",
+    "field_encoded",
 ]
 TARGET_COLUMN = "enrollment_count"
 
@@ -44,9 +45,9 @@ class XGBoostForecaster(BaseForecaster):
         y = df[TARGET_COLUMN]
 
         self._model = XGBRegressor(
-            n_estimators=200,
+            n_estimators=300,
             max_depth=4,
-            learning_rate=0.05,
+            learning_rate=0.03,
             subsample=0.8,
             colsample_bytree=0.8,
             random_state=42,

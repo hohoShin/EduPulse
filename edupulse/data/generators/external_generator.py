@@ -32,7 +32,8 @@ def generate_search_trends(
 ) -> pd.DataFrame:
     """검색 트렌드 합성 데이터 생성.
 
-    enrollment 기반으로 2-4주 선행하는 검색량을 생성한다.
+    enrollment_df의 [field, date] 그리드를 재사용하여 주간 검색량을 생성한다.
+    검색량은 등록 수에 2-4주 선행하는 상관관계를 반영한다.
 
     Args:
         enrollment_df: generate_enrollment_history() 결과 DataFrame
@@ -44,29 +45,30 @@ def generate_search_trends(
     rng = np.random.default_rng(seed)
     records = []
 
-    for _, row in enrollment_df.iterrows():
-        field = row["field"]
-        enrollment = row["enrollment_count"]
-        cohort_date = pd.Timestamp(row["date"])
+    for field in enrollment_df["field"].unique():
+        field_df = enrollment_df[enrollment_df["field"] == field].sort_values("date")
+        enrollments = field_df["enrollment_count"].values
+        dates = field_df["date"].values
 
-        # 2-4주 선행 날짜 (등록 전 검색 피크)
-        lag_weeks = rng.integers(2, 5)  # 2, 3, 4 중 하나
-        search_date = cohort_date - timedelta(weeks=int(lag_weeks))
+        for i, (dt, enrollment) in enumerate(zip(dates, enrollments)):
+            # 2-4주 후의 enrollment을 기반으로 현재 검색량 생성
+            future_idx = min(i + rng.integers(2, 5), len(enrollments) - 1)
+            future_enrollment = enrollments[future_idx]
 
-        correlation = SEARCH_CORRELATION.get(field, 1.5)
-        noise = rng.normal(0, 5)
-        search_volume = int(round(max(1, enrollment * correlation + noise)))
+            correlation = SEARCH_CORRELATION.get(field, 1.5)
+            noise = rng.normal(0, 1.5)
+            search_volume = int(round(max(1, future_enrollment * correlation + noise)))
 
-        date_str = search_date.strftime("%Y-%m-%d")
-        records.append({
-            "date": date_str,
-            "field": field,
-            "cohort": row["cohort"],
-            "search_volume": search_volume,
-            # Prophet 호환 컬럼
-            "ds": date_str,
-            "y": search_volume,
-        })
+            dt_ts = pd.Timestamp(dt)
+            date_str = dt_ts.strftime("%Y-%m-%d")
+            records.append({
+                "date": date_str,
+                "field": field,
+                "search_volume": search_volume,
+                # Prophet 호환 컬럼
+                "ds": date_str,
+                "y": search_volume,
+            })
 
     df = pd.DataFrame(records)
     df["date"] = pd.to_datetime(df["date"])
@@ -81,7 +83,7 @@ def generate_job_postings(
 ) -> pd.DataFrame:
     """채용 공고 합성 데이터 생성.
 
-    분야별 상관 계수를 적용한 채용 공고 수를 생성한다.
+    enrollment_df의 [field, date] 그리드를 재사용하여 주간 채용 공고 수를 생성한다.
 
     Args:
         enrollment_df: generate_enrollment_history() 결과 DataFrame
@@ -99,14 +101,13 @@ def generate_job_postings(
         cohort_date = pd.Timestamp(row["date"])
 
         correlation = JOB_CORRELATION.get(field, 1.5)
-        noise = rng.normal(0, 8)
+        noise = rng.normal(0, 2.0)
         job_count = int(round(max(0, enrollment * correlation + noise)))
 
         date_str = cohort_date.strftime("%Y-%m-%d")
         records.append({
             "date": date_str,
             "field": field,
-            "cohort": row["cohort"],
             "job_count": job_count,
             # Prophet 호환 컬럼
             "ds": date_str,
