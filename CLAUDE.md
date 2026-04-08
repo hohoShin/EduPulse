@@ -39,8 +39,11 @@ edupulse/
 │   │   ├── job_posting.py     # Job posting crawler (coding, security, game, art roles)
 │   │   └── competitor.py      # Competitor academy schedule and pricing crawler
 │   └── api/
-│       ├── naver_datalab.py   # Naver DataLab search volume collection
-│       └── google_trends.py   # Google Trends keyword trend collection
+│       ├── naver_datalab.py   # Naver DataLab search volume collection (primary source)
+│       ├── google_trends.py   # Google Trends keyword trend collection (cache-only)
+│       ├── keywords.py        # Field-to-keyword mapping (Korean/English)
+│       ├── quota.py           # Naver API daily quota tracker (KST reset)
+│       └── collect_search_trends.py  # Collection orchestrator (CLI entry point)
 │
 ├── preprocessing/
 │   ├── cleaner.py             # Missing value interpolation, IQR/Z-score outlier handling
@@ -94,8 +97,12 @@ edupulse/
 
 ### Collection — Key Notes
 - Always check `robots.txt` before crawling; maintain a minimum 1–2 second delay between requests
-- Naver DataLab API has a daily call limit — cache results under `data/raw/external/`
-- Include the collection date in external data filenames (e.g. `job_posting_20250407.csv`)
+- Naver DataLab API has a daily call limit (1000/day) — quota tracked in `data/raw/external/.naver_quota.json` (KST reset)
+- Include the collection date range in cache filenames (e.g. `naver_coding_20250101_20250407.json`)
+- **Naver = primary data source** for `search_trends.csv`; Google Trends = cache-only for future research
+- Fallback chain: Naver API → cached Naver JSON → skip (Google never used in pipeline output)
+- Run collection: `python -m edupulse.collection.api.collect_search_trends`
+- Output writes to same path as synthetic generator (`data/raw/external/search_trends.csv`) — drop-in replacement
 
 ### Preprocessing — Key Notes
 - Apply linear interpolation (`interpolate(method='linear')`) first for missing values in time-series data

@@ -19,5 +19,11 @@ class Settings(BaseSettings):
     # Model
     model_dir: str = "edupulse/model/saved"
 
+    # Collection
+    naver_daily_quota: int = 1000
+    search_trends_output: str = "edupulse/data/raw/external/search_trends.csv"
+    cache_dir: str = "edupulse/data/raw/external/cache"
+    cache_staleness_weeks: int = 4
+
 
 settings = Settings()
