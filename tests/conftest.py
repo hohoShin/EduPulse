@@ -36,6 +36,18 @@ class FakeForecaster(BaseForecaster):
         pass
 
 
+@pytest.fixture(autouse=True)
+def _force_cpu(monkeypatch):
+    """LSTM 테스트 시 MPS 대신 CPU 사용을 강제한다."""
+    try:
+        import torch
+        cpu = lambda: torch.device("cpu")
+        monkeypatch.setattr("edupulse.model.utils.get_device", cpu)
+        monkeypatch.setattr("edupulse.model.lstm_model.get_device", cpu)
+    except ImportError:
+        pass
+
+
 @pytest.fixture
 def client():
     """FakeForecaster가 로딩된 TestClient.
