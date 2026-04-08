@@ -5,12 +5,25 @@ Usage:
     result = predict_demand('Python 웹개발', '2026-05-01', 'coding')
     result = predict_demand('Python 웹개발', '2026-05-01', 'coding', model_name='ensemble')
 """
+import logging
 import math
+import os
 
+import numpy as np
 import pandas as pd
 
 from edupulse.model.base import BaseForecaster, PredictionResult
 from edupulse.model.xgboost_model import FEATURE_COLUMNS
+
+logger = logging.getLogger(__name__)
+
+# 분야 → 인코딩 값 (알파벳 순, transformer.py의 astype("category").cat.codes와 동일)
+FIELD_ENCODING = {"art": 0, "coding": 1, "game": 2, "security": 3}
+
+# 데이터 파일 경로
+_ENROLLMENT_PATH = "edupulse/data/raw/internal/enrollment_history.csv"
+_SEARCH_TRENDS_PATH = "edupulse/data/raw/external/search_trends.csv"
+_JOB_POSTINGS_PATH = "edupulse/data/raw/external/job_postings.csv"
 
 # 모듈 레벨 모델 캐시 (직접 로딩 전략 — api.dependencies.MODEL_REGISTRY와 별도)
 _model_cache: dict[str, BaseForecaster] = {}
@@ -117,8 +130,12 @@ def _load_ensemble(version: int = 1) -> "BaseForecaster":
 def _build_features(course_name: str, start_date: str, field: str) -> pd.DataFrame:
     """API raw 입력 → feature DataFrame 변환.
 
-    실제 피처 엔지니어링은 Phase 3에서 전처리 모듈과 연동.
-    현재는 zero-filled 기본 피처를 반환하여 모델 호출 가능 상태 유지.
+    실제 CSV 데이터에서 해당 분야/시점의 피처를 조립한다.
+    - enrollment_history.csv → lag_1w~8w, rolling_mean_4w
+    - search_trends.csv → search_volume
+    - job_postings.csv → job_count
+    - 날짜 → month_sin, month_cos
+    - 분야 → field_encoded
 
     Args:
         course_name: 과정명
@@ -126,16 +143,89 @@ def _build_features(course_name: str, start_date: str, field: str) -> pd.DataFra
         field: 분야 ('coding', 'security', 'game', 'art')
 
     Returns:
-        feature_columns에 해당하는 1행 DataFrame
+        FEATURE_COLUMNS에 해당하는 1행 DataFrame
     """
     import datetime
 
     dt = datetime.date.fromisoformat(start_date)
-    month_rad = (dt.month - 1) / 12.0 * 2 * math.pi
+    target_date = pd.Timestamp(start_date)
 
-    row = {col: 0.0 for col in FEATURE_COLUMNS}
-    row["month_sin"] = math.sin(month_rad)
-    row["month_cos"] = math.cos(month_rad)
+    # --- 1) month_sin, month_cos ---
+    month_rad = dt.month / 12.0 * 2 * math.pi
+    month_sin = math.sin(month_rad)
+    month_cos = math.cos(month_rad)
+
+    # --- 2) field_encoded ---
+    field_encoded = float(FIELD_ENCODING.get(field, 0))
+
+    # --- 3) lag features + rolling_mean (enrollment_history.csv) ---
+    lag_1w, lag_2w, lag_4w, lag_8w, rolling_mean_4w = 0.0, 0.0, 0.0, 0.0, 0.0
+    if os.path.exists(_ENROLLMENT_PATH):
+        try:
+            enroll_df = pd.read_csv(_ENROLLMENT_PATH)
+            enroll_df["date"] = pd.to_datetime(enroll_df["date"])
+            field_enroll = (
+                enroll_df[enroll_df["field"] == field]
+                .sort_values("date")
+            )
+            # target_date 이전 데이터만 사용
+            prior = field_enroll[field_enroll["date"] < target_date]
+            if len(prior) >= 1:
+                lag_1w = float(prior.iloc[-1]["enrollment_count"])
+            if len(prior) >= 2:
+                lag_2w = float(prior.iloc[-2]["enrollment_count"])
+            if len(prior) >= 4:
+                lag_4w = float(prior.iloc[-4]["enrollment_count"])
+            if len(prior) >= 8:
+                lag_8w = float(prior.iloc[-8]["enrollment_count"])
+            # rolling_mean_4w: 최근 4주 평균
+            if len(prior) >= 4:
+                rolling_mean_4w = float(prior.iloc[-4:]["enrollment_count"].mean())
+            elif len(prior) >= 1:
+                rolling_mean_4w = float(prior.tail(4)["enrollment_count"].mean())
+        except Exception as e:
+            logger.warning("등록 이력 로딩 실패, lag=0 사용: %s", e)
+
+    # --- 4) search_volume (search_trends.csv) ---
+    search_volume = 0.0
+    if os.path.exists(_SEARCH_TRENDS_PATH):
+        try:
+            search_df = pd.read_csv(_SEARCH_TRENDS_PATH)
+            search_df["date"] = pd.to_datetime(search_df["date"])
+            field_search = search_df[search_df["field"] == field].sort_values("date")
+            prior_search = field_search[field_search["date"] < target_date]
+            if len(prior_search) >= 1:
+                search_volume = float(prior_search.iloc[-1]["search_volume"])
+        except Exception as e:
+            logger.warning("검색 트렌드 로딩 실패, search_volume=0 사용: %s", e)
+
+    # --- 5) job_count (job_postings.csv) ---
+    job_count = 0.0
+    if os.path.exists(_JOB_POSTINGS_PATH):
+        try:
+            job_df = pd.read_csv(_JOB_POSTINGS_PATH)
+            job_df["date"] = pd.to_datetime(job_df["date"])
+            field_jobs = job_df[job_df["field"] == field].sort_values("date")
+            prior_jobs = field_jobs[field_jobs["date"] < target_date]
+            if len(prior_jobs) >= 1:
+                job_count = float(prior_jobs.iloc[-1]["job_count"])
+        except Exception as e:
+            logger.warning("채용 공고 로딩 실패, job_count=0 사용: %s", e)
+
+    # --- 조립 ---
+    row = {
+        "date": start_date,
+        "lag_1w": lag_1w,
+        "lag_2w": lag_2w,
+        "lag_4w": lag_4w,
+        "lag_8w": lag_8w,
+        "rolling_mean_4w": rolling_mean_4w,
+        "month_sin": month_sin,
+        "month_cos": month_cos,
+        "search_volume": search_volume,
+        "job_count": job_count,
+        "field_encoded": field_encoded,
+    }
 
     return pd.DataFrame([row])
 
