@@ -462,13 +462,22 @@ class LSTMForecaster(BaseForecaster):
             return self._evaluate_per_field(df, n_splits)
         return self._evaluate_single(df, n_splits)
 
-    def _evaluate_single(self, df: pd.DataFrame, n_splits: int) -> dict:
-        """단일 시계열 평가."""
-        torch = _get_torch()
+    def _evaluate_fold(
+        self, X_raw: np.ndarray, y_raw: np.ndarray, n_splits: int,
+    ) -> list[float]:
+        """K-Fold 평가 공통 로직. 각 fold의 MAPE 리스트를 반환한다.
 
-        X_raw, y_raw = self._prepare_arrays(df)
+        Args:
+            X_raw: 피처 배열 (n_samples, n_features)
+            y_raw: 타겟 배열 (n_samples, 1)
+            n_splits: K-Fold 분할 수
+
+        Returns:
+            각 fold의 MAPE 값 리스트
+        """
+        torch = _get_torch()
         tscv = TimeSeriesSplit(n_splits=n_splits)
-        mapes = []
+        mapes: list[float] = []
 
         for train_idx, val_idx in tscv.split(X_raw):
             X_tr, X_val = X_raw[train_idx], X_raw[val_idx]
@@ -484,7 +493,6 @@ class LSTMForecaster(BaseForecaster):
             if len(xs_tr) == 0:
                 continue
 
-            # 학습 시퀀스 증강 (train()과 동일하게)
             xs_tr, ys_tr = _augment_sequences(xs_tr, ys_tr)
 
             device = get_device()
@@ -498,7 +506,7 @@ class LSTMForecaster(BaseForecaster):
             fold_model.train()
             dataset = torch.utils.data.TensorDataset(X_t, y_t)
             loader = torch.utils.data.DataLoader(
-                dataset, batch_size=BATCH_SIZE, shuffle=False
+                dataset, batch_size=BATCH_SIZE, shuffle=False,
             )
             for _ in range(50):
                 for Xb, yb in loader:
@@ -519,99 +527,38 @@ class LSTMForecaster(BaseForecaster):
                 preds_scaled.append(pred_inv)
                 actuals.append(act_inv)
 
-            actuals = np.array(actuals)
-            preds_scaled = np.array(preds_scaled)
-            nonzero = actuals != 0
+            actuals_arr = np.array(actuals)
+            preds_arr = np.array(preds_scaled)
+            nonzero = actuals_arr != 0
             if nonzero.any():
                 fold_mape = float(
                     np.mean(
                         np.abs(
-                            (actuals[nonzero] - preds_scaled[nonzero])
-                            / actuals[nonzero]
+                            (actuals_arr[nonzero] - preds_arr[nonzero])
+                            / actuals_arr[nonzero]
                         )
                     )
                     * 100
                 )
                 mapes.append(fold_mape)
 
+        return mapes
+
+    def _evaluate_single(self, df: pd.DataFrame, n_splits: int) -> dict:
+        """단일 시계열 평가."""
+        X_raw, y_raw = self._prepare_arrays(df)
+        mapes = self._evaluate_fold(X_raw, y_raw, n_splits)
         avg_mape = float(np.mean(mapes)) if mapes else float("nan")
         self._mape = avg_mape
         return {"mape": avg_mape, "n_splits": n_splits}
 
     def _evaluate_per_field(self, df: pd.DataFrame, n_splits: int) -> dict:
         """분야별 분리 평가 후 평균 MAPE 반환."""
-        torch = _get_torch()
-        all_mapes = []
-
+        all_mapes: list[float] = []
         for field in df["field"].unique():
             field_df = df[df["field"] == field].sort_values("date").reset_index(drop=True)
             X_raw, y_raw = self._prepare_arrays(field_df)
-            tscv = TimeSeriesSplit(n_splits=n_splits)
-
-            for train_idx, val_idx in tscv.split(X_raw):
-                X_tr, X_val = X_raw[train_idx], X_raw[val_idx]
-                y_tr, y_val = y_raw[train_idx], y_raw[val_idx]
-
-                scaler_X = MinMaxScaler()
-                scaler_y = MinMaxScaler()
-                X_tr_s = scaler_X.fit_transform(X_tr)
-                y_tr_s = scaler_y.fit_transform(y_tr).ravel()
-                X_val_s = scaler_X.transform(X_val)
-
-                xs_tr, ys_tr = _build_sequences(X_tr_s, y_tr_s, SEQUENCE_LENGTH)
-                if len(xs_tr) == 0:
-                    continue
-
-                # 학습 시퀀스 증강 (train()과 동일하게)
-                xs_tr, ys_tr = _augment_sequences(xs_tr, ys_tr)
-
-                device = get_device()
-                X_t = torch.tensor(xs_tr).to(device)
-                y_t = torch.tensor(ys_tr).unsqueeze(1).to(device)
-
-                fold_model = self._make_model().to(device)
-                opt = torch.optim.Adam(fold_model.parameters(), lr=1e-3)
-                crit = torch.nn.MSELoss()
-
-                fold_model.train()
-                dataset = torch.utils.data.TensorDataset(X_t, y_t)
-                loader = torch.utils.data.DataLoader(
-                    dataset, batch_size=BATCH_SIZE, shuffle=False
-                )
-                for _ in range(50):
-                    for Xb, yb in loader:
-                        opt.zero_grad()
-                        loss = crit(fold_model(Xb), yb)
-                        loss.backward()
-                        opt.step()
-
-                fold_model.eval()
-                preds_scaled, actuals = [], []
-                for i in range(len(X_val_s) - SEQUENCE_LENGTH):
-                    seq = X_val_s[i : i + SEQUENCE_LENGTH]
-                    X_inf = torch.tensor(seq).unsqueeze(0).to(device)
-                    with torch.no_grad():
-                        p = fold_model(X_inf).item()
-                    pred_inv = float(scaler_y.inverse_transform([[p]])[0][0])
-                    act_inv = float(y_val[i + SEQUENCE_LENGTH][0])
-                    preds_scaled.append(pred_inv)
-                    actuals.append(act_inv)
-
-                actuals = np.array(actuals)
-                preds_scaled = np.array(preds_scaled)
-                nonzero = actuals != 0
-                if nonzero.any():
-                    fold_mape = float(
-                        np.mean(
-                            np.abs(
-                                (actuals[nonzero] - preds_scaled[nonzero])
-                                / actuals[nonzero]
-                            )
-                        )
-                        * 100
-                    )
-                    all_mapes.append(fold_mape)
-
+            all_mapes.extend(self._evaluate_fold(X_raw, y_raw, n_splits))
         avg_mape = float(np.mean(all_mapes)) if all_mapes else float("nan")
         self._mape = avg_mape
         return {"mape": avg_mape, "n_splits": n_splits}
