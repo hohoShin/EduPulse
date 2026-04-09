@@ -755,3 +755,68 @@ def test_retrain_resolve_version(tmp_path):
     # 버전 없으면 1
     with patch("edupulse.model.utils.find_latest_version", return_value=0):
         assert _resolve_version("xgboost", None) == 1
+
+
+def test_clean_data_forward_only_interpolation():
+    """clean_data가 전방 보간만 수행하여 미래 데이터 누수를 방지해야 한다."""
+    from edupulse.preprocessing.cleaner import clean_data
+
+    df = pd.DataFrame({
+        "date": ["2025-01-01", "2025-01-08", "2025-01-15", "2025-01-22"],
+        "enrollment_count": [float("nan"), float("nan"), 100.0, 200.0],
+    })
+    result = clean_data(df, target_col="enrollment_count")
+    # 전방 보간만 적용: 첫 두 행은 이전 값이 없으므로 NaN 유지
+    assert pd.isna(result["enrollment_count"].iloc[0])
+    assert pd.isna(result["enrollment_count"].iloc[1])
+    assert result["enrollment_count"].iloc[2] == 100.0
+
+
+def test_build_features_unknown_field_raises():
+    """build_features에 미등록 분야를 전달하면 ValueError가 발생해야 한다."""
+    from edupulse.model.predict import build_features, clear_model_cache
+
+    clear_model_cache()
+    with pytest.raises(ValueError, match="미등록 분야"):
+        build_features("test", "2026-05-01", "unknown_field")
+
+
+def test_retrain_evaluate_safe_access():
+    """retrain에서 evaluate 결과의 mape 키가 없어도 크래시하지 않아야 한다."""
+    from unittest.mock import patch, MagicMock
+
+    from edupulse.model.retrain import retrain
+
+    # train과 evaluate를 모킹하되, evaluate가 'all' 형태 결과를 반환
+    with patch("edupulse.model.retrain._resolve_version", return_value=1), \
+         patch("edupulse.preprocessing.merger.build_training_dataset"), \
+         patch("edupulse.model.train.train_model"), \
+         patch("edupulse.model.evaluate.evaluate_model", return_value={"model_mapes": {}, "comparison_table": "", "n_splits": 5}), \
+         patch("edupulse.model.predict.clear_model_cache"):
+        # mape 키 없어도 크래시하지 않아야 함
+        retrain(model_name="xgboost", version=1)
+
+
+def test_ensemble_evaluate_weighted_mape():
+    """앙상블 evaluate가 가중 MAPE를 반환해야 한다."""
+    from unittest.mock import MagicMock
+    from edupulse.model.ensemble import EnsembleForecaster
+
+    ensemble = EnsembleForecaster()
+
+    mock_a = MagicMock()
+    mock_a.evaluate.return_value = {"mape": 10.0}
+    mock_b = MagicMock()
+    mock_b.evaluate.return_value = {"mape": 20.0}
+
+    ensemble.add_model("a", mock_a)
+    ensemble.add_model("b", mock_b)
+
+    # 균등 가중치 (weights=None) → 단순 평균 = 15.0
+    result = ensemble.evaluate(pd.DataFrame(), n_splits=3)
+    assert abs(result["mape"] - 15.0) < 0.01
+
+    # 가중치 설정: a=0.8, b=0.2 → 가중 평균 = 10*0.8 + 20*0.2 = 12.0
+    ensemble._weights = {"a": 0.8, "b": 0.2}
+    result = ensemble.evaluate(pd.DataFrame(), n_splits=3)
+    assert abs(result["mape"] - 12.0) < 0.01

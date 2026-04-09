@@ -220,6 +220,11 @@ def build_features(course_name: str, start_date: str, field: str) -> pd.DataFram
     dt = datetime.date.fromisoformat(start_date)
     target_date = pd.Timestamp(start_date)
 
+    from edupulse.constants import FIELD_ENCODING
+
+    if field not in FIELD_ENCODING:
+        raise ValueError(f"미등록 분야: '{field}'. 허용: {list(FIELD_ENCODING.keys())}")
+
     month_sin, month_cos = compute_month_encoding(dt.month)
     field_encoded = compute_field_encoding(field)
 
@@ -243,19 +248,18 @@ def build_features(course_name: str, start_date: str, field: str) -> pd.DataFram
             )
             # target_date 이전 인덱스에서 lag 계산
             prior_idx = field_series.index[field_series.index < target_date_aligned]
-            if len(prior_idx) >= 1:
-                idx = len(prior_idx)
+            idx = len(prior_idx)
+            if idx >= 1:
                 lag_1w = float(field_series.iloc[idx - 1])
-            if len(prior_idx) >= 2:
+            if idx >= 2:
                 lag_2w = float(field_series.iloc[idx - 2])
-            if len(prior_idx) >= 4:
+            if idx >= 4:
                 lag_4w = float(field_series.iloc[idx - 4])
-            if len(prior_idx) >= 8:
+            if idx >= 8:
                 lag_8w = float(field_series.iloc[idx - 8])
-            # rolling_mean_4w: 최근 4주 평균
-            if len(prior_idx) >= 4:
+            if idx >= 4:
                 rolling_mean_4w = float(field_series.iloc[idx - 4:idx].mean())
-            elif len(prior_idx) >= 1:
+            elif idx >= 1:
                 rolling_mean_4w = float(field_series.iloc[:idx].mean())
         except Exception as e:
             logger.warning("등록 이력 로딩 실패, lag=0 사용: %s", e)

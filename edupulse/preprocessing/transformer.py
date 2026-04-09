@@ -94,7 +94,7 @@ def add_lag_features(
         df["month_cos"] = encodings.apply(lambda t: t[1])
 
     if "field" in df.columns:
-        df["field_encoded"] = df["field"].apply(compute_field_encoding).astype(int)
+        df["field_encoded"] = df["field"].apply(compute_field_encoding)
 
     return df
 

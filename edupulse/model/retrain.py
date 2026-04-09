@@ -73,7 +73,11 @@ def retrain(model_name: str = "xgboost", version: int | None = None, dry_run: bo
     try:
         from edupulse.model.evaluate import evaluate_model
         results = evaluate_model(model_name=model_name)
-        print(f"[retrain] Evaluation complete — MAPE: {results['mape']:.2f}%")
+        mape = results.get("mape")
+        if mape is not None and mape == mape:  # nan check
+            print(f"[retrain] Evaluation complete — MAPE: {mape:.2f}%")
+        else:
+            print("[retrain] Evaluation complete — MAPE: N/A")
     except Exception as e:
         print(f"[retrain] WARNING: Evaluation failed: {e}", file=sys.stderr)
 

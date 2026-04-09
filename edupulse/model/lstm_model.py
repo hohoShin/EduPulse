@@ -430,10 +430,10 @@ class LSTMForecaster(BaseForecaster):
         X_scaled = self._scaler_X.transform(X_raw)
 
         if len(X_scaled) < SEQUENCE_LENGTH:
-            pad = np.zeros(
-                (SEQUENCE_LENGTH - len(X_scaled), X_scaled.shape[1]),
-                dtype=np.float32,
-            )
+            # 스케일링된 공간에서 원본 0에 해당하는 값으로 패딩 (raw 0 → scaled)
+            zero_row = np.zeros((1, X_raw.shape[1]), dtype=np.float32)
+            zero_scaled = self._scaler_X.transform(zero_row)
+            pad = np.repeat(zero_scaled, SEQUENCE_LENGTH - len(X_scaled), axis=0)
             X_scaled = np.vstack([pad, X_scaled])
 
         seq = X_scaled[-SEQUENCE_LENGTH:]
