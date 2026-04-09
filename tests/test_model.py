@@ -190,10 +190,20 @@ def test_augment_sequences():
     import numpy as np
     from edupulse.model.lstm_model import (
         _augment_sequences, AUGMENTABLE_FEATURES, PROTECTED_FEATURES,
+        INPUT_SIZE,
     )
+    from edupulse.model.xgboost_model import FEATURE_COLUMNS
+
+    # 이름 기반 인덱스 검증
+    assert INPUT_SIZE == len(FEATURE_COLUMNS)
+    for idx in PROTECTED_FEATURES:
+        assert FEATURE_COLUMNS[idx] in {"month_sin", "month_cos", "field_encoded"}
+    for idx in AUGMENTABLE_FEATURES:
+        assert FEATURE_COLUMNS[idx] not in {"month_sin", "month_cos", "field_encoded"}
+    assert sorted(PROTECTED_FEATURES + AUGMENTABLE_FEATURES) == list(range(INPUT_SIZE))
 
     rng = np.random.default_rng(0)
-    n_seq, seq_len, n_feat = 20, 12, 10
+    n_seq, seq_len, n_feat = 20, 12, INPUT_SIZE
     xs = rng.random((n_seq, seq_len, n_feat)).astype(np.float32)
     ys = rng.random(n_seq).astype(np.float32)
 

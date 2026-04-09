@@ -12,13 +12,11 @@ import os
 import numpy as np
 import pandas as pd
 
+from edupulse.constants import FIELD_ENCODING
 from edupulse.model.base import BaseForecaster, PredictionResult
 from edupulse.model.xgboost_model import FEATURE_COLUMNS
 
 logger = logging.getLogger(__name__)
-
-# 분야 → 인코딩 값 (알파벳 순, transformer.py의 astype("category").cat.codes와 동일)
-FIELD_ENCODING = {"art": 0, "coding": 1, "game": 2, "security": 3}
 
 # 단일 모델 버전 상수 — dependencies.py에서도 이 값을 참조한다.
 MODEL_VERSION = 1
@@ -223,6 +221,7 @@ def build_features(course_name: str, start_date: str, field: str) -> pd.DataFram
     # --- 조립 ---
     row = {
         "date": start_date,
+        "field": field,
         "lag_1w": lag_1w,
         "lag_2w": lag_2w,
         "lag_4w": lag_4w,

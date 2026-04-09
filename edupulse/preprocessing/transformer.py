@@ -55,9 +55,10 @@ def add_lag_features(
         df["month_sin"] = np.sin(2 * np.pi * month / 12)
         df["month_cos"] = np.cos(2 * np.pi * month / 12)
 
-    # 분야 label encoding
+    # 분야 label encoding (constants.py의 FIELD_ENCODING을 단일 진실 소스로 사용)
     if "field" in df.columns:
-        df["field_encoded"] = df["field"].astype("category").cat.codes
+        from edupulse.constants import FIELD_ENCODING
+        df["field_encoded"] = df["field"].map(FIELD_ENCODING).fillna(0).astype(int)
 
     return df
 

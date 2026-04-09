@@ -130,8 +130,12 @@ def _build_sequences_per_field(
         xs: (n_total_windows, sequence_length, n_features)
         ys: (n_total_windows,)
     """
-    available = validate_feature_columns(feature_cols, df, "LSTM.sequences")
-    X_raw = df[available].fillna(0).values.astype(np.float32)
+    validate_feature_columns(feature_cols, df, "LSTM.sequences")
+    # 누락 컬럼 0 패딩으로 scaler 차원(= INPUT_SIZE) 보장
+    for col in feature_cols:
+        if col not in df.columns:
+            df[col] = 0.0
+    X_raw = df[feature_cols].fillna(0).values.astype(np.float32)
     y_raw = df[target_col].values.astype(np.float32).reshape(-1, 1)
 
     if fit_scalers:
@@ -161,12 +165,10 @@ def _build_sequences_per_field(
     return np.concatenate(all_xs), np.concatenate(all_ys)
 
 
-# 증강 대상 피처 인덱스 (연속값만 — 순환 인코딩/카테고리 제외)
-# lag_1w(0), lag_2w(1), lag_4w(2), lag_8w(3), rolling_mean_4w(4),
-# search_volume(7), job_count(8)
-AUGMENTABLE_FEATURES = [0, 1, 2, 3, 4, 7, 8]
-# month_sin(5), month_cos(6), field_encoded(9) — 절대 변형하지 않음
-PROTECTED_FEATURES = [5, 6, 9]
+# 증강 대상 피처: 이름 기반으로 인덱스를 동적 계산 (피처 추가/순서 변경에 안전)
+_PROTECTED_NAMES = {"month_sin", "month_cos", "field_encoded"}
+PROTECTED_FEATURES = [i for i, c in enumerate(FEATURE_COLUMNS) if c in _PROTECTED_NAMES]
+AUGMENTABLE_FEATURES = [i for i, c in enumerate(FEATURE_COLUMNS) if c not in _PROTECTED_NAMES]
 
 
 def _augment_sequences(
@@ -322,8 +324,11 @@ class LSTMForecaster(BaseForecaster):
         self, df: pd.DataFrame
     ) -> tuple[np.ndarray, np.ndarray]:
         """DataFrame → 정규화된 (X, y) numpy 배열 반환."""
-        available = validate_feature_columns(FEATURE_COLUMNS, df, "LSTM.prepare")
-        X_raw = df[available].fillna(0).values.astype(np.float32)
+        validate_feature_columns(FEATURE_COLUMNS, df, "LSTM.prepare")
+        for col in FEATURE_COLUMNS:
+            if col not in df.columns:
+                df[col] = 0.0
+        X_raw = df[FEATURE_COLUMNS].fillna(0).values.astype(np.float32)
         y_raw = df[TARGET_COLUMN].values.astype(np.float32).reshape(-1, 1)
         return X_raw, y_raw
 
@@ -405,8 +410,12 @@ class LSTMForecaster(BaseForecaster):
         torch = _get_torch()
         device = get_device()
 
-        available = validate_feature_columns(FEATURE_COLUMNS, features, "LSTM.predict")
-        X_raw = features[available].fillna(0).values.astype(np.float32)
+        validate_feature_columns(FEATURE_COLUMNS, features, "LSTM.predict")
+        # 누락 컬럼 0 패딩으로 scaler 차원 보장
+        for col in FEATURE_COLUMNS:
+            if col not in features.columns:
+                features[col] = 0.0
+        X_raw = features[FEATURE_COLUMNS].fillna(0).values.astype(np.float32)
         X_scaled = self._scaler_X.transform(X_raw)
 
         # sequence_length에 맞게 패딩 (추론 시 데이터가 부족할 수 있음)
