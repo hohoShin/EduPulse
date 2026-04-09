@@ -89,9 +89,8 @@ def add_lag_features(
 
     if date_col and pd.api.types.is_datetime64_any_dtype(df[date_col]):
         month = df[date_col].dt.month
-        encodings = month.apply(lambda m: compute_month_encoding(m))
-        df["month_sin"] = encodings.apply(lambda t: t[0])
-        df["month_cos"] = encodings.apply(lambda t: t[1])
+        df["month_sin"] = month.apply(lambda m: compute_month_encoding(m)[0])
+        df["month_cos"] = month.apply(lambda m: compute_month_encoding(m)[1])
 
     if "field" in df.columns:
         df["field_encoded"] = df["field"].apply(compute_field_encoding)
@@ -104,6 +103,5 @@ def _detect_date_col(df: pd.DataFrame) -> str | None:
     for candidate in ("date", "ds"):
         if candidate in df.columns:
             return candidate
-    # date가 포함된 컬럼명 폴백
     date_cols = [c for c in df.columns if "date" in c.lower()]
     return date_cols[0] if date_cols else None

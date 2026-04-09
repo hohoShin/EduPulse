@@ -188,7 +188,8 @@ class EnsembleForecaster(BaseForecaster):
             {'mape': float, 'n_splits': int, 'model_mapes': dict}
         """
         model_mapes: dict[str, float] = {}
-        valid_pairs: list[tuple[str, float]] = []
+        valid_names: list[str] = []
+        valid_mapes: list[float] = []
 
         for name, model in self._models.items():
             try:
@@ -196,14 +197,13 @@ class EnsembleForecaster(BaseForecaster):
                 mape_val = result.get("mape", float("nan"))
                 model_mapes[name] = mape_val
                 if not np.isnan(mape_val):
-                    valid_pairs.append((name, mape_val))
+                    valid_names.append(name)
+                    valid_mapes.append(mape_val)
             except Exception as exc:
                 logger.warning("앙상블: %s 평가 실패 (건너뜀) — %s", name, exc)
                 model_mapes[name] = float("nan")
 
-        if valid_pairs:
-            valid_names = [p[0] for p in valid_pairs]
-            valid_mapes = [p[1] for p in valid_pairs]
+        if valid_names:
             weights = self._get_effective_weights(valid_names)
             avg_mape = float(np.average(valid_mapes, weights=weights))
         else:

@@ -178,7 +178,6 @@ def test_model_comparison():
         lstm_eval = lstm.evaluate(df, n_splits=3)
         results["lstm"] = lstm_eval["mape"]
 
-    # 결과 출력 및 검증
     print("\n모델 MAPE 비교:")
     for name, mape in results.items():
         flag = " *** MAPE > 30% ***" if (not math.isnan(mape) and mape > 30) else ""
@@ -360,13 +359,11 @@ def test_ensemble_uses_public_predict():
 
     sample = df.iloc[[-1]].copy()
 
-    # predict (public)가 호출되는지, _predict (private)가 아닌지 검증
     with patch.object(xgb, "predict", wraps=xgb.predict) as mock_predict, \
          patch.object(xgb, "_predict", wraps=xgb._predict) as mock_private:
         ensemble.predict(sample)
         mock_predict.assert_called_once()
-        # _predict는 predict() 내부에서 1번 호출되지만, 앙상블에서 직접 호출하면 안 됨
-        # predict → _predict 체이닝으로 1번만 호출되어야 함
+        # 앙상블은 public predict()만 호출 — _predict는 predict() 내부 체이닝으로 1번
         assert mock_private.call_count == 1
 
 

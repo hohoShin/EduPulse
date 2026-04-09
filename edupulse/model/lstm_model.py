@@ -111,9 +111,8 @@ class EnrollmentLSTM:
 
             def forward(self, x):
                 """x: (batch, seq_len, input_size) → (batch, 1)."""
-                out, _ = self.lstm(x)          # (batch, seq, hidden)
-                last = out[:, -1, :]           # 마지막 타임스텝
-                return self.fc(last)           # (batch, 1)
+                out, _ = self.lstm(x)
+                return self.fc(out[:, -1, :])
 
         return _LSTMModule(*args, **kwargs)
 
@@ -530,19 +529,17 @@ class LSTMForecaster(BaseForecaster):
             )
 
             fold_model.eval()
-            preds_scaled, actuals = [], []
+            preds, actuals = [], []
             for i in range(len(X_val_s) - SEQUENCE_LENGTH):
                 seq = X_val_s[i : i + SEQUENCE_LENGTH]
                 X_inf = torch.tensor(seq).unsqueeze(0).to(device)
                 with torch.no_grad():
                     p = fold_model(X_inf).item()
-                pred_inv = float(scaler_y.inverse_transform([[p]])[0][0])
-                act_inv = float(y_val[i + SEQUENCE_LENGTH][0])
-                preds_scaled.append(pred_inv)
-                actuals.append(act_inv)
+                preds.append(float(scaler_y.inverse_transform([[p]])[0][0]))
+                actuals.append(float(y_val[i + SEQUENCE_LENGTH][0]))
 
             actuals_arr = np.array(actuals)
-            preds_arr = np.array(preds_scaled)
+            preds_arr = np.array(preds)
             nonzero = actuals_arr != 0
             if nonzero.any():
                 fold_mape = float(
