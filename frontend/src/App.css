@@ -1,0 +1,42 @@
+.app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--background, #ffffff);
+  color: var(--text, #333333);
+}
+
+header {
+  padding: 2rem;
+  border-bottom: 1px solid var(--border, #e0e0e0);
+  text-align: center;
+}
+
+header h1 {
+  margin: 0 0 0.5rem 0;
+  font-size: 2rem;
+}
+
+header p {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--text-secondary, #666666);
+}
+
+main {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+}
+
+.placeholder {
+  text-align: center;
+  padding: 2rem;
+}
+
+.placeholder p {
+  font-size: 1.1rem;
+  color: var(--text-secondary, #666666);
+}
