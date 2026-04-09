@@ -3,7 +3,7 @@ import pandas as pd
 import pytest
 
 from edupulse.constants import DemandTier, classify_demand, DEMAND_THRESHOLDS
-from edupulse.model.base import PredictionResult
+from edupulse.model.base import ModelMetadata, PredictionResult, load_metadata, save_metadata
 from edupulse.model.xgboost_model import XGBoostForecaster
 from edupulse.preprocessing.transformer import add_lag_features
 
@@ -229,3 +229,107 @@ def test_augment_sequences():
     aug_xs2, aug_ys2 = _augment_sequences(xs, ys, n_augments=2, seed=99)
     np.testing.assert_array_equal(aug_xs, aug_xs2)
     np.testing.assert_array_equal(aug_ys, aug_ys2)
+
+
+def test_xgboost_save_metadata(tmp_path):
+    """XGBoost save(df=...)가 metadata.json을 올바르게 생성해야 한다."""
+    import json
+
+    df = _make_training_df(n=100)
+    model = XGBoostForecaster()
+    model.train(df)
+
+    save_dir = str(tmp_path / "xgboost")
+    model.save(save_dir, version=1, df=df)
+
+    meta_path = tmp_path / "xgboost" / "v1" / "metadata.json"
+    assert meta_path.exists(), "metadata.json이 생성되지 않았습니다"
+
+    meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    assert meta["model_name"] == "xgboost"
+    assert meta["version"] == 1
+    assert meta["data_rows"] == 100
+    assert "trained_at" in meta
+    assert isinstance(meta["feature_columns"], list)
+    assert len(meta["feature_columns"]) > 0
+    assert isinstance(meta["hyperparameters"], dict)
+    assert meta["hyperparameters"]["n_estimators"] == 300
+    assert "coding" in meta["fields"]
+    assert meta["python_version"]
+    assert isinstance(meta["package_versions"], dict)
+
+
+def test_metadata_save_and_load(tmp_path):
+    """save_metadata → load_metadata 왕복이 올바르게 동작해야 한다."""
+    metadata = ModelMetadata(
+        model_name="test_model",
+        version=1,
+        trained_at="2026-04-09T14:30:00+00:00",
+        data_rows=500,
+        data_date_range={"start": "2020-01-01", "end": "2025-12-31"},
+        feature_columns=["lag_1w", "lag_2w"],
+        hyperparameters={"lr": 0.01},
+        mape=12.5,
+        fields=["coding", "art"],
+        package_versions={"xgboost": "2.0.0"},
+    )
+
+    save_dir = str(tmp_path / "test_model")
+    save_metadata(save_dir, version=1, metadata=metadata)
+
+    loaded = load_metadata(save_dir, version=1)
+    assert loaded.model_name == "test_model"
+    assert loaded.version == 1
+    assert loaded.data_rows == 500
+    assert loaded.mape == 12.5
+    assert loaded.fields == ["coding", "art"]
+    assert loaded.data_date_range["start"] == "2020-01-01"
+    assert loaded.hyperparameters["lr"] == 0.01
+
+
+def test_save_without_df_no_metadata(tmp_path):
+    """df=None으로 save하면 metadata.json이 생성되지 않아야 한다 (하위 호환)."""
+    df = _make_training_df(n=100)
+    model = XGBoostForecaster()
+    model.train(df)
+
+    save_dir = str(tmp_path / "xgboost_no_meta")
+    model.save(save_dir, version=1)  # df 미전달
+
+    meta_path = tmp_path / "xgboost_no_meta" / "v1" / "metadata.json"
+    assert not meta_path.exists(), "df=None인데 metadata.json이 생성되었습니다"
+
+    # 모델 파일은 정상 생성
+    model_path = tmp_path / "xgboost_no_meta" / "v1" / "model.joblib"
+    assert model_path.exists()
+
+
+def test_ensemble_uses_public_predict():
+    """앙상블이 서브모델의 public predict() (lock 포함)를 호출해야 한다."""
+    from unittest.mock import MagicMock, patch
+
+    from edupulse.model.ensemble import EnsembleForecaster
+
+    df = _make_training_df(n=100)
+    xgb = XGBoostForecaster()
+    xgb.train(df)
+
+    ensemble = EnsembleForecaster()
+    ensemble.add_model("xgboost", xgb)
+
+    sample = df.iloc[[-1]].copy()
+
+    # predict (public)가 호출되는지, _predict (private)가 아닌지 검증
+    with patch.object(xgb, "predict", wraps=xgb.predict) as mock_predict, \
+         patch.object(xgb, "_predict", wraps=xgb._predict) as mock_private:
+        ensemble.predict(sample)
+        mock_predict.assert_called_once()
+        # _predict는 predict() 내부에서 1번 호출되지만, 앙상블에서 직접 호출하면 안 됨
+        # predict → _predict 체이닝으로 1번만 호출되어야 함
+        assert mock_private.call_count == 1
+
+
+def test_load_metadata_not_found(tmp_path):
+    """존재하지 않는 metadata.json 로딩 시 FileNotFoundError가 발생해야 한다."""
+    with pytest.raises(FileNotFoundError):
+        load_metadata(str(tmp_path / "nonexistent"), version=1)

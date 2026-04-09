@@ -5,7 +5,14 @@ import numpy as np
 import pandas as pd
 
 from edupulse.constants import classify_demand
-from edupulse.model.base import BaseForecaster, PredictionResult
+from edupulse.model.base import (
+    BaseForecaster,
+    ModelMetadata,
+    PredictionResult,
+    _extract_data_info,
+    _get_package_version,
+    save_metadata,
+)
 
 
 class EnsembleForecaster(BaseForecaster):
@@ -133,7 +140,7 @@ class EnsembleForecaster(BaseForecaster):
 
         for name, model in self._models.items():
             try:
-                result = model._predict(features)
+                result = model.predict(features)
                 enrollments.append(float(result.predicted_enrollment))
                 lowers.append(result.confidence_lower)
                 uppers.append(result.confidence_upper)
@@ -197,15 +204,36 @@ class EnsembleForecaster(BaseForecaster):
         avg_mape = float(np.mean(all_mapes)) if all_mapes else float("nan")
         return {"mape": avg_mape, "n_splits": n_splits, "model_mapes": model_mapes}
 
-    def save(self, path: str, version: int) -> None:
+    def save(self, path: str, version: int, df: pd.DataFrame | None = None) -> None:
         """각 모델을 개별 하위 디렉터리에 저장.
 
         Args:
             path: 저장 루트 경로 (예: edupulse/model/saved/ensemble)
             version: 버전 번호
+            df: 학습 DataFrame (메타데이터 생성용, None이면 메타데이터 생략)
         """
         for name, model in self._models.items():
-            model.save(f"{path}/{name}", version=version)
+            model.save(f"{path}/{name}", version=version, df=df)
+
+        if df is not None:
+            from datetime import datetime, timezone
+
+            data_info = _extract_data_info(df)
+            metadata = ModelMetadata(
+                model_name="ensemble",
+                version=version,
+                trained_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                data_rows=data_info["data_rows"],
+                data_date_range=data_info["data_date_range"],
+                feature_columns=[],
+                hyperparameters={
+                    "weights": self._weights,
+                    "models": list(self._models.keys()),
+                },
+                mape=None,
+                fields=data_info["fields"],
+            )
+            save_metadata(path, version, metadata)
 
     def load(self, path: str, version: int) -> None:
         """각 모델을 개별 하위 디렉터리에서 로딩.
