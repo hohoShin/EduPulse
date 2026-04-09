@@ -692,3 +692,59 @@ def test_lstm_feature_compatibility_check(tmp_path):
 
     # metadata 없으면 조용히 통과
     _check_feature_compatibility(str(tmp_path / "nonexistent"), 1, ["a", "b"])
+
+
+def test_compute_month_encoding_consistency():
+    """transformer의 공유 함수와 numpy 벡터 연산이 동일한 결과를 내야 한다."""
+    import math
+    from edupulse.preprocessing.transformer import compute_month_encoding
+
+    for month in range(1, 13):
+        sin_val, cos_val = compute_month_encoding(month)
+        expected_sin = math.sin(2 * math.pi * month / 12)
+        expected_cos = math.cos(2 * math.pi * month / 12)
+        assert abs(sin_val - expected_sin) < 1e-10
+        assert abs(cos_val - expected_cos) < 1e-10
+
+
+def test_compute_field_encoding_values():
+    """compute_field_encoding이 FIELD_ENCODING과 일치해야 한다."""
+    from edupulse.preprocessing.transformer import compute_field_encoding
+    from edupulse.constants import FIELD_ENCODING
+
+    for field, expected in FIELD_ENCODING.items():
+        assert compute_field_encoding(field) == float(expected)
+    # 미등록 분야는 0.0
+    assert compute_field_encoding("unknown_field") == 0.0
+
+
+def test_find_latest_version(tmp_path):
+    """find_latest_version이 vN 디렉토리에서 최대 N을 반환해야 한다."""
+    from edupulse.model.utils import find_latest_version
+
+    # 빈 디렉토리 → 0
+    assert find_latest_version(str(tmp_path / "empty")) == 0
+
+    # v1, v3 존재 → 3
+    model_dir = tmp_path / "xgboost"
+    (model_dir / "v1").mkdir(parents=True)
+    (model_dir / "v3").mkdir(parents=True)
+    (model_dir / "not_a_version").mkdir()  # 무시되어야 함
+    assert find_latest_version(str(model_dir)) == 3
+
+
+def test_retrain_resolve_version(tmp_path):
+    """_resolve_version이 None일 때 latest+1을 반환해야 한다."""
+    from unittest.mock import patch
+    from edupulse.model.retrain import _resolve_version
+
+    # 명시적 버전은 그대로 반환
+    assert _resolve_version("xgboost", 5) == 5
+
+    # None이면 자동 감지
+    with patch("edupulse.model.utils.find_latest_version", return_value=3):
+        assert _resolve_version("xgboost", None) == 4
+
+    # 버전 없으면 1
+    with patch("edupulse.model.utils.find_latest_version", return_value=0):
+        assert _resolve_version("xgboost", None) == 1

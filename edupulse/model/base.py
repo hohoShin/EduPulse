@@ -1,7 +1,9 @@
 """BaseForecaster ABC + PredictionResult / ModelMetadata dataclass."""
 import json
+import logging
 import sys
 import threading
+import warnings
 from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
@@ -125,9 +127,6 @@ def validate_feature_columns(
     Returns:
         df에 존재하는 컬럼만 필터링한 목록
     """
-    import logging
-    import warnings
-
     available = [c for c in expected if c in df.columns]
     missing = [c for c in expected if c not in df.columns]
     if missing:
@@ -135,6 +134,58 @@ def validate_feature_columns(
         logging.getLogger(__name__).warning(msg)
         warnings.warn(msg, UserWarning, stacklevel=2)
     return available
+
+
+def ensure_feature_columns(
+    df: pd.DataFrame, expected: list[str], caller: str = "",
+) -> pd.DataFrame:
+    """누락 피처를 0으로 채운 DataFrame 복사본 반환. 원본은 변경하지 않는다.
+
+    Args:
+        df: 실제 DataFrame
+        expected: 기대하는 피처 컬럼 목록
+        caller: 호출자 식별 문자열 (로그용)
+
+    Returns:
+        expected 컬럼이 모두 존재하는 DataFrame (누락 시 0.0으로 채움)
+    """
+    available = validate_feature_columns(expected, df, caller)
+    if len(available) == len(expected):
+        return df  # 모든 컬럼 존재 → 복사 불필요
+    result = df.copy()
+    for col in expected:
+        if col not in result.columns:
+            result[col] = 0.0
+    return result
+
+
+def warn_feature_mismatch(path: str, version: int, current_features: list[str]) -> None:
+    """metadata.json이 있으면 학습 시 피처와 현재 피처를 비교하여 경고.
+
+    Args:
+        path: 모델 저장 루트 경로
+        version: 버전 번호
+        current_features: 현재 코드에서 사용하는 피처 목록
+    """
+    try:
+        meta = load_metadata(path, version)
+        saved = meta.feature_columns
+        if saved and set(saved) != set(current_features):
+            added = set(current_features) - set(saved)
+            removed = set(saved) - set(current_features)
+            parts = []
+            if added:
+                parts.append(f"추가됨={added}")
+            if removed:
+                parts.append(f"제거됨={removed}")
+            msg = (
+                f"[load] 피처 불일치 — 학습: {len(saved)}개, "
+                f"현재: {len(current_features)}개. {', '.join(parts)}"
+            )
+            logging.getLogger(__name__).warning(msg)
+            warnings.warn(msg, UserWarning, stacklevel=2)
+    except FileNotFoundError:
+        pass  # metadata 없으면 검증 불가 — 무시
 
 
 class BaseForecaster(ABC):

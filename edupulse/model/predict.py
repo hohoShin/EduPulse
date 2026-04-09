@@ -6,16 +6,15 @@ Usage:
     result = predict_demand('Python 웹개발', '2026-05-01', 'coding', model_name='ensemble')
 """
 import logging
-import math
 import os
 import threading
 
 import numpy as np
 import pandas as pd
 
-from edupulse.constants import FIELD_ENCODING
 from edupulse.model.base import BaseForecaster, PredictionResult
 from edupulse.model.xgboost_model import FEATURE_COLUMNS
+from edupulse.preprocessing.transformer import compute_field_encoding, compute_month_encoding
 
 logger = logging.getLogger(__name__)
 
@@ -29,23 +28,49 @@ _JOB_POSTINGS_PATH = "edupulse/data/raw/external/job_postings.csv"
 
 # 모듈 레벨 모델 캐시 및 스레드 잠금
 _model_cache: dict[str, BaseForecaster] = {}
+_model_mtime: dict[str, float] = {}  # 캐시 시점의 모델 파일 mtime
 _cache_lock = threading.Lock()
 
 # CSV 데이터 캐시 — build_features()의 반복 I/O 방지
 _data_cache: dict[str, pd.DataFrame] = {}
 _data_cache_lock = threading.Lock()
 
+# 모델 이름 → 저장 경로 매핑
+_MODEL_PATHS = {
+    "xgboost": "edupulse/model/saved/xgboost",
+    "prophet": "edupulse/model/saved/prophet",
+    "lstm": "edupulse/model/saved/lstm",
+}
+
+
+def _get_model_mtime(model_name: str, version: int) -> float:
+    """모델 파일의 mtime 반환. 파일 미존재 시 0.0."""
+    from pathlib import Path
+
+    base = _MODEL_PATHS.get(model_name, "")
+    if not base:
+        return 0.0
+    # 모델 디렉토리 내 주요 파일 중 가장 최신 mtime
+    model_dir = Path(base) / f"v{version}"
+    if not model_dir.exists():
+        return 0.0
+    mtimes = [f.stat().st_mtime for f in model_dir.iterdir() if f.is_file()]
+    return max(mtimes) if mtimes else 0.0
+
 
 def clear_model_cache() -> None:
     """모델 캐시 및 데이터 캐시 초기화. 테스트 또는 리로딩 시 사용."""
     with _cache_lock:
         _model_cache.clear()
+        _model_mtime.clear()
     with _data_cache_lock:
         _data_cache.clear()
 
 
 def load_model(model_name: str, version: int = MODEL_VERSION) -> BaseForecaster:
     """모델 캐시에서 반환하거나 새로 로딩 (스레드 안전).
+
+    retrain으로 모델 파일이 갱신되면 mtime 비교를 통해 자동 리로딩한다.
 
     Args:
         model_name: 모델 이름 ('xgboost', 'prophet', 'lstm', 'ensemble')
@@ -55,11 +80,18 @@ def load_model(model_name: str, version: int = MODEL_VERSION) -> BaseForecaster:
         로딩된 BaseForecaster 인스턴스
     """
     key = f"{model_name}_v{version}"
-    if key in _model_cache:  # 빠른 경로 (잠금 없는 읽기)
-        return _model_cache[key]
 
     with _cache_lock:
-        if key not in _model_cache:  # 잠금 내 이중 확인
+        # 캐시 히트 + 파일 변경 여부 확인
+        if key in _model_cache:
+            current_mtime = _get_model_mtime(model_name, version)
+            if current_mtime <= _model_mtime.get(key, 0.0):
+                return _model_cache[key]
+            # 파일이 갱신됨 — 캐시 무효화 후 재로딩
+            logger.info("모델 파일 갱신 감지: %s (리로딩)", key)
+            del _model_cache[key]
+
+        if key not in _model_cache:
             if model_name == "xgboost":
                 from edupulse.model.xgboost_model import XGBoostForecaster
 
@@ -91,6 +123,7 @@ def load_model(model_name: str, version: int = MODEL_VERSION) -> BaseForecaster:
                 raise ValueError(f"Unknown model_name: {model_name}")
 
             _model_cache[key] = model
+            _model_mtime[key] = _get_model_mtime(model_name, version)
 
     return _model_cache[key]
 
@@ -188,13 +221,11 @@ def build_features(course_name: str, start_date: str, field: str) -> pd.DataFram
     dt = datetime.date.fromisoformat(start_date)
     target_date = pd.Timestamp(start_date)
 
-    # --- 1) month_sin, month_cos ---
-    month_rad = dt.month / 12.0 * 2 * math.pi
-    month_sin = math.sin(month_rad)
-    month_cos = math.cos(month_rad)
+    # --- 1) month_sin, month_cos — transformer.py 공유 함수 사용 ---
+    month_sin, month_cos = compute_month_encoding(dt.month)
 
-    # --- 2) field_encoded ---
-    field_encoded = float(FIELD_ENCODING.get(field, 0))
+    # --- 2) field_encoded — transformer.py 공유 함수 사용 ---
+    field_encoded = compute_field_encoding(field)
 
     # --- 3) lag features + rolling_mean (enrollment_history.csv) ---
     # 학습 파이프라인(merger.py)과 동일하게 연속 주간 시계열(asfreq)로 정렬 후

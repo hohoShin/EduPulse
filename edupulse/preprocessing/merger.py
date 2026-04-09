@@ -2,8 +2,12 @@
 
 내부(enrollment) + 외부(search_trends, job_postings) 데이터를 [field, date] 기준으로 병합.
 """
+import logging
 import os
+
 import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 
 def merge_datasets(
@@ -44,9 +48,12 @@ def merge_datasets(
         job_cols = job_df[join_keys + ["job_count"]].copy()
         merged = merged.merge(job_cols, on=join_keys, how="left")
 
-    # 병합 후 결측치 forward fill
+    # 병합 후 결측치 forward fill (분야 간 데이터 누수 방지: field 경계 내에서만 ffill)
     numeric_cols = merged.select_dtypes(include="number").columns
-    merged[numeric_cols] = merged[numeric_cols].ffill()
+    if "field" in merged.columns:
+        merged[numeric_cols] = merged.groupby("field")[numeric_cols].ffill()
+    else:
+        merged[numeric_cols] = merged[numeric_cols].ffill()
 
     return merged
 
@@ -70,9 +77,16 @@ def build_training_dataset(
     enrollment_path = os.path.join(raw_internal_dir, "enrollment_history.csv")
     enrollment_df = pd.read_csv(enrollment_path)
 
-    # 외부 데이터 로딩 (파일 없으면 빈 DataFrame)
-    search_df = _load_csv_safe(os.path.join(raw_external_dir, "search_trends.csv"))
-    job_df = _load_csv_safe(os.path.join(raw_external_dir, "job_postings.csv"))
+    # 외부 데이터 로딩 (파일 없으면 None → 경고 후 해당 컬럼 없이 진행)
+    search_path = os.path.join(raw_external_dir, "search_trends.csv")
+    search_df = _load_csv_safe(search_path)
+    if search_df is None:
+        logger.warning("[build_training_dataset] 외부 데이터 누락: %s → search_volume 컬럼 없이 진행", search_path)
+
+    job_path = os.path.join(raw_external_dir, "job_postings.csv")
+    job_df = _load_csv_safe(job_path)
+    if job_df is None:
+        logger.warning("[build_training_dataset] 외부 데이터 누락: %s → job_count 컬럼 없이 진행", job_path)
 
     merged = merge_datasets(enrollment_df, search_df, job_df)
 
