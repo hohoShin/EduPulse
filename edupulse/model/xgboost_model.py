@@ -9,7 +9,15 @@ from sklearn.model_selection import TimeSeriesSplit
 from xgboost import XGBRegressor
 
 from edupulse.constants import classify_demand
-from edupulse.model.base import BaseForecaster, PredictionResult
+from edupulse.model.base import (
+    BaseForecaster,
+    ModelMetadata,
+    PredictionResult,
+    _extract_data_info,
+    _get_package_version,
+    save_metadata,
+    validate_feature_columns,
+)
 
 FEATURE_COLUMNS = [
     "lag_1w",
@@ -40,7 +48,7 @@ class XGBoostForecaster(BaseForecaster):
         Args:
             df: feature_columns + target_column을 포함한 DataFrame
         """
-        available = [c for c in FEATURE_COLUMNS if c in df.columns]
+        available = validate_feature_columns(FEATURE_COLUMNS, df, "XGBoost.train")
         X = df[available].fillna(0)
         y = df[TARGET_COLUMN]
 
@@ -64,7 +72,7 @@ class XGBoostForecaster(BaseForecaster):
         if self._model is None:
             raise RuntimeError("Model not trained or loaded. Call train() or load() first.")
 
-        available = [c for c in FEATURE_COLUMNS if c in features.columns]
+        available = validate_feature_columns(FEATURE_COLUMNS, features, "XGBoost.predict")
         X = features[available].fillna(0)
         raw_pred = float(self._model.predict(X)[0])
         predicted_enrollment = max(0, round(raw_pred))
@@ -95,7 +103,7 @@ class XGBoostForecaster(BaseForecaster):
         Returns:
             {'mape': float, 'n_splits': int}
         """
-        available = [c for c in FEATURE_COLUMNS if c in df.columns]
+        available = validate_feature_columns(FEATURE_COLUMNS, df, "XGBoost.evaluate")
         X = df[available].fillna(0).values
         y = df[TARGET_COLUMN].values
 
@@ -128,12 +136,13 @@ class XGBoostForecaster(BaseForecaster):
         self._mape = avg_mape
         return {"mape": avg_mape, "n_splits": n_splits}
 
-    def save(self, path: str, version: int) -> None:
+    def save(self, path: str, version: int, df: pd.DataFrame | None = None) -> None:
         """모델을 joblib으로 직렬화 저장.
 
         Args:
             path: 저장 루트 경로 (예: edupulse/model/saved/xgboost)
             version: 버전 번호
+            df: 학습 DataFrame (메타데이터 생성용, None이면 메타데이터 생략)
         """
         save_dir = Path(path) / f"v{version}"
         save_dir.mkdir(parents=True, exist_ok=True)
@@ -141,6 +150,34 @@ class XGBoostForecaster(BaseForecaster):
             {"model": self._model, "mape": self._mape},
             save_dir / "model.joblib",
         )
+
+        if df is not None:
+            from datetime import datetime, timezone
+
+            data_info = _extract_data_info(df)
+            metadata = ModelMetadata(
+                model_name="xgboost",
+                version=version,
+                trained_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                data_rows=data_info["data_rows"],
+                data_date_range=data_info["data_date_range"],
+                feature_columns=[c for c in FEATURE_COLUMNS if c in df.columns],
+                hyperparameters={
+                    "n_estimators": 300,
+                    "max_depth": 4,
+                    "learning_rate": 0.03,
+                    "subsample": 0.8,
+                    "colsample_bytree": 0.8,
+                    "random_state": 42,
+                },
+                mape=self._mape,
+                fields=data_info["fields"],
+                package_versions={
+                    "xgboost": _get_package_version("xgboost"),
+                    "scikit-learn": _get_package_version("scikit-learn"),
+                },
+            )
+            save_metadata(path, version, metadata)
 
     def load(self, path: str, version: int) -> None:
         """저장된 모델을 joblib으로 로딩.

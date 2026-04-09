@@ -16,7 +16,15 @@ from sklearn.model_selection import TimeSeriesSplit
 from sklearn.preprocessing import MinMaxScaler
 
 from edupulse.constants import classify_demand
-from edupulse.model.base import BaseForecaster, PredictionResult
+from edupulse.model.base import (
+    BaseForecaster,
+    ModelMetadata,
+    PredictionResult,
+    _extract_data_info,
+    _get_package_version,
+    save_metadata,
+    validate_feature_columns,
+)
 from edupulse.model.utils import get_device
 from edupulse.model.xgboost_model import FEATURE_COLUMNS, TARGET_COLUMN
 
@@ -122,7 +130,7 @@ def _build_sequences_per_field(
         xs: (n_total_windows, sequence_length, n_features)
         ys: (n_total_windows,)
     """
-    available = [c for c in feature_cols if c in df.columns]
+    available = validate_feature_columns(feature_cols, df, "LSTM.sequences")
     X_raw = df[available].fillna(0).values.astype(np.float32)
     y_raw = df[target_col].values.astype(np.float32).reshape(-1, 1)
 
@@ -314,7 +322,7 @@ class LSTMForecaster(BaseForecaster):
         self, df: pd.DataFrame
     ) -> tuple[np.ndarray, np.ndarray]:
         """DataFrame → 정규화된 (X, y) numpy 배열 반환."""
-        available = [c for c in FEATURE_COLUMNS if c in df.columns]
+        available = validate_feature_columns(FEATURE_COLUMNS, df, "LSTM.prepare")
         X_raw = df[available].fillna(0).values.astype(np.float32)
         y_raw = df[TARGET_COLUMN].values.astype(np.float32).reshape(-1, 1)
         return X_raw, y_raw
@@ -397,7 +405,7 @@ class LSTMForecaster(BaseForecaster):
         torch = _get_torch()
         device = get_device()
 
-        available = [c for c in FEATURE_COLUMNS if c in features.columns]
+        available = validate_feature_columns(FEATURE_COLUMNS, features, "LSTM.predict")
         X_raw = features[available].fillna(0).values.astype(np.float32)
         X_scaled = self._scaler_X.transform(X_raw)
 
@@ -612,12 +620,13 @@ class LSTMForecaster(BaseForecaster):
     # 저장 / 로딩
     # ------------------------------------------------------------------
 
-    def save(self, path: str, version: int) -> None:
+    def save(self, path: str, version: int, df: pd.DataFrame | None = None) -> None:
         """모델 가중치 + 스케일러를 저장.
 
         Args:
             path: 저장 루트 경로 (예: edupulse/model/saved/lstm)
             version: 버전 번호
+            df: 학습 DataFrame (메타데이터 생성용, None이면 메타데이터 생략)
         """
         import joblib
 
@@ -638,6 +647,39 @@ class LSTMForecaster(BaseForecaster):
             },
             save_dir / "scalers.joblib",
         )
+
+        if df is not None:
+            from datetime import datetime, timezone
+
+            data_info = _extract_data_info(df)
+            metadata = ModelMetadata(
+                model_name="lstm",
+                version=version,
+                trained_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                data_rows=data_info["data_rows"],
+                data_date_range=data_info["data_date_range"],
+                feature_columns=[c for c in FEATURE_COLUMNS if c in df.columns],
+                hyperparameters={
+                    "sequence_length": SEQUENCE_LENGTH,
+                    "hidden_size": HIDDEN_SIZE,
+                    "num_layers": NUM_LAYERS,
+                    "dropout": DROPOUT,
+                    "batch_size": BATCH_SIZE,
+                    "input_size": INPUT_SIZE,
+                    "patience": PATIENCE,
+                    "scheduler_factor": SCHEDULER_FACTOR,
+                    "scheduler_patience": SCHEDULER_PATIENCE,
+                    "min_lr": MIN_LR,
+                    "val_ratio": VAL_RATIO,
+                },
+                mape=self._mape,
+                fields=data_info["fields"],
+                package_versions={
+                    "torch": _get_package_version("torch"),
+                    "scikit-learn": _get_package_version("scikit-learn"),
+                },
+            )
+            save_metadata(path, version, metadata)
 
     def load(self, path: str, version: int) -> None:
         """저장된 가중치와 스케일러 로딩.

@@ -304,6 +304,30 @@ def test_save_without_df_no_metadata(tmp_path):
     assert model_path.exists()
 
 
+def test_missing_columns_warns():
+    """피처 컬럼이 누락되면 UserWarning이 발생해야 한다."""
+    import warnings
+    from edupulse.model.base import validate_feature_columns
+
+    df = pd.DataFrame({"lag_1w": [1.0], "lag_2w": [2.0]})
+    expected = ["lag_1w", "lag_2w", "lag_4w", "nonexistent"]
+
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        result = validate_feature_columns(expected, df, "test")
+        assert result == ["lag_1w", "lag_2w"]
+        assert len(w) == 1
+        assert "lag_4w" in str(w[0].message)
+        assert "nonexistent" in str(w[0].message)
+
+    # 모든 컬럼이 있으면 경고 없음
+    df_full = pd.DataFrame({"a": [1], "b": [2]})
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        validate_feature_columns(["a", "b"], df_full, "test")
+        assert len(w) == 0
+
+
 def test_ensemble_uses_public_predict():
     """앙상블이 서브모델의 public predict() (lock 포함)를 호출해야 한다."""
     from unittest.mock import MagicMock, patch

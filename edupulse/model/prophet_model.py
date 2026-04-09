@@ -8,7 +8,15 @@ import pandas as pd
 from sklearn.model_selection import TimeSeriesSplit
 
 from edupulse.constants import classify_demand
-from edupulse.model.base import BaseForecaster, PredictionResult
+from edupulse.model.base import (
+    BaseForecaster,
+    ModelMetadata,
+    PredictionResult,
+    _extract_data_info,
+    _get_package_version,
+    save_metadata,
+    validate_feature_columns,
+)
 
 # Prophet은 선택적 의존성 — 미설치 환경(torch-only)에서도 임포트 안전
 try:
@@ -79,9 +87,9 @@ class ProphetForecaster(BaseForecaster):
         prophet_df["ds"] = pd.to_datetime(df[DATE_COLUMN])
         prophet_df["y"] = df[TARGET_COLUMN].astype(float)
 
-        for col in REGRESSOR_COLUMNS:
-            if col in df.columns:
-                prophet_df[col] = df[col].fillna(0).astype(float)
+        available_regs = validate_feature_columns(REGRESSOR_COLUMNS, df, "Prophet.to_df")
+        for col in available_regs:
+            prophet_df[col] = df[col].fillna(0).astype(float)
 
         return prophet_df
 
@@ -120,14 +128,14 @@ class ProphetForecaster(BaseForecaster):
             for field in df["field"].unique():
                 field_df = df[df["field"] == field].sort_values(DATE_COLUMN).reset_index(drop=True)
                 prophet_df = self._to_prophet_df(field_df)
-                self._regressors = [c for c in REGRESSOR_COLUMNS if c in prophet_df.columns]
+                self._regressors = validate_feature_columns(REGRESSOR_COLUMNS, prophet_df, "Prophet.train")
                 model = self._build_model(self._regressors)
                 model.fit(prophet_df)
                 self._field_models[field] = model
             self._model = next(iter(self._field_models.values()))
         else:
             prophet_df = self._to_prophet_df(df)
-            self._regressors = [c for c in REGRESSOR_COLUMNS if c in prophet_df.columns]
+            self._regressors = validate_feature_columns(REGRESSOR_COLUMNS, prophet_df, "Prophet.train")
             self._model = self._build_model(self._regressors)
             self._model.fit(prophet_df)
 
@@ -199,7 +207,7 @@ class ProphetForecaster(BaseForecaster):
     def _evaluate_single_series(self, df: pd.DataFrame, n_splits: int) -> dict:
         """단일 시계열 평가."""
         prophet_df = self._to_prophet_df(df)
-        regressors = [c for c in REGRESSOR_COLUMNS if c in prophet_df.columns]
+        regressors = validate_feature_columns(REGRESSOR_COLUMNS, prophet_df, "Prophet.evaluate")
 
         tscv = TimeSeriesSplit(n_splits=n_splits)
         indices = np.arange(len(prophet_df))
@@ -236,7 +244,7 @@ class ProphetForecaster(BaseForecaster):
         for field in df["field"].unique():
             field_df = df[df["field"] == field].sort_values(DATE_COLUMN).reset_index(drop=True)
             prophet_df = self._to_prophet_df(field_df)
-            regressors = [c for c in REGRESSOR_COLUMNS if c in prophet_df.columns]
+            regressors = validate_feature_columns(REGRESSOR_COLUMNS, prophet_df, "Prophet.evaluate")
 
             tscv = TimeSeriesSplit(n_splits=n_splits)
             indices = np.arange(len(prophet_df))
@@ -269,12 +277,13 @@ class ProphetForecaster(BaseForecaster):
     # 저장 / 로딩
     # ------------------------------------------------------------------
 
-    def save(self, path: str, version: int) -> None:
+    def save(self, path: str, version: int, df: pd.DataFrame | None = None) -> None:
         """모델을 joblib으로 직렬화 저장.
 
         Args:
             path: 저장 루트 경로 (예: edupulse/model/saved/prophet)
             version: 버전 번호
+            df: 학습 DataFrame (메타데이터 생성용, None이면 메타데이터 생략)
         """
         if self._model is None and not self._field_models:
             raise RuntimeError("저장할 모델이 없습니다. train()을 먼저 호출하세요.")
@@ -294,6 +303,32 @@ class ProphetForecaster(BaseForecaster):
             },
             save_dir / "model.joblib",
         )
+
+        if df is not None:
+            from datetime import datetime, timezone
+
+            data_info = _extract_data_info(df)
+            metadata = ModelMetadata(
+                model_name="prophet",
+                version=version,
+                trained_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                data_rows=data_info["data_rows"],
+                data_date_range=data_info["data_date_range"],
+                feature_columns=[DATE_COLUMN, TARGET_COLUMN] + self._regressors,
+                hyperparameters={
+                    "seasonality_mode": self._seasonality_mode,
+                    "yearly_seasonality": self._yearly_seasonality,
+                    "weekly_seasonality": self._weekly_seasonality,
+                    "changepoint_prior_scale": self._changepoint_prior_scale,
+                    "regressors": self._regressors,
+                },
+                mape=self._mape,
+                fields=data_info["fields"],
+                package_versions={
+                    "prophet": _get_package_version("prophet"),
+                },
+            )
+            save_metadata(path, version, metadata)
 
     def load(self, path: str, version: int) -> None:
         """저장된 모델을 joblib으로 로딩.
