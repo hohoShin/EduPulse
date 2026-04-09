@@ -3,8 +3,12 @@
 내부(enrollment) + 외부(search_trends, job_postings) 데이터를 [field, date] 기준으로 병합.
 신규 소스(상담, 학생 프로필, 웹 로그, 자격증 일정, 경쟁사, 계절 이벤트) 포함.
 """
+import logging
 import os
+
 import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 BINARY_FLAG_COLUMNS = ["has_cert_exam", "is_vacation", "is_exam_season", "is_semester_start"]
 
@@ -40,7 +44,6 @@ def merge_datasets(
     """
     merged = enrollment_df.copy()
     merged[date_col] = pd.to_datetime(merged[date_col])
-    # 주간 정렬: 날짜를 주 시작일(월요일)로 정규화
     merged[date_col] = merged[date_col].dt.to_period("W").dt.start_time
 
     join_keys = ["field", date_col]
@@ -105,10 +108,13 @@ def merge_datasets(
         seasonal_cols = seasonal_df[[date_col, "is_vacation", "is_exam_season", "is_semester_start"]].copy()
         merged = merged.merge(seasonal_cols, on=date_col, how="left")
 
-    # 병합 후 결측치 처리: 연속값은 forward fill, 이진 플래그는 0으로 채움
+    # 분야 경계 내에서만 ffill (분야 간 데이터 누수 방지), 이진 플래그는 0으로 채움
     numeric_cols = merged.select_dtypes(include="number").columns
     continuous_cols = [c for c in numeric_cols if c not in BINARY_FLAG_COLUMNS]
-    merged[continuous_cols] = merged[continuous_cols].ffill()
+    if "field" in merged.columns:
+        merged[continuous_cols] = merged.groupby("field")[continuous_cols].ffill()
+    else:
+        merged[continuous_cols] = merged[continuous_cols].ffill()
     binary_present = [c for c in BINARY_FLAG_COLUMNS if c in merged.columns]
     merged[binary_present] = merged[binary_present].fillna(0).astype(int)
 
@@ -130,13 +136,18 @@ def build_training_dataset(
     Returns:
         병합된 학습용 DataFrame.
     """
-    # 내부 데이터 로딩
     enrollment_path = os.path.join(raw_internal_dir, "enrollment_history.csv")
     enrollment_df = pd.read_csv(enrollment_path)
 
-    # 외부 데이터 로딩 (파일 없으면 None)
-    search_df = _load_csv_safe(os.path.join(raw_external_dir, "search_trends.csv"))
-    job_df = _load_csv_safe(os.path.join(raw_external_dir, "job_postings.csv"))
+    search_path = os.path.join(raw_external_dir, "search_trends.csv")
+    search_df = _load_csv_safe(search_path)
+    if search_df is None:
+        logger.warning("[build_training_dataset] 외부 데이터 누락: %s → search_volume 컬럼 없이 진행", search_path)
+
+    job_path = os.path.join(raw_external_dir, "job_postings.csv")
+    job_df = _load_csv_safe(job_path)
+    if job_df is None:
+        logger.warning("[build_training_dataset] 외부 데이터 누락: %s → job_count 컬럼 없이 진행", job_path)
 
     # 신규 내부 소스
     consultation_df = _load_csv_safe(os.path.join(raw_internal_dir, "consultation_logs.csv"))
@@ -160,15 +171,12 @@ def build_training_dataset(
         seasonal_df=seasonal_df,
     )
 
-    # 전처리: 결측치 보간 + 이상치 클리핑
     from edupulse.preprocessing.cleaner import clean_data
     merged = clean_data(merged, target_col="enrollment_count")
 
-    # lag feature 추가 (XGBoost 피처 생성)
     from edupulse.preprocessing.transformer import add_lag_features
     merged = add_lag_features(merged, target_col="enrollment_count")
 
-    # warehouse 디렉토리 생성 후 저장
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     merged.to_csv(output_path, index=False)
 

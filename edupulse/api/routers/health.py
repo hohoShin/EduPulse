@@ -3,7 +3,7 @@ import resource
 
 from fastapi import APIRouter
 
-from edupulse.api.dependencies import MODEL_REGISTRY
+from edupulse.api.dependencies import get_loaded_model_names
 
 router = APIRouter()
 
@@ -11,7 +11,7 @@ router = APIRouter()
 @router.get("/health")
 def health_check():
     """서버 상태 및 모델 로딩 여부 반환."""
-    models_loaded = list(MODEL_REGISTRY.keys())
+    models_loaded = get_loaded_model_names()
 
     # DB 연결 확인 (연결 실패 시 False 반환)
     db_connected = False

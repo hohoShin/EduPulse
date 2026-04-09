@@ -36,7 +36,7 @@ def train_model(
 
 
 def _train_single(model_name: str, df: pd.DataFrame, version: int) -> None:
-    """단일 모델 학습 및 저장.
+    """단일 모델 학습, 평가, 메타데이터 포함 저장.
 
     Args:
         model_name: 모델 이름
@@ -48,9 +48,10 @@ def _train_single(model_name: str, df: pd.DataFrame, version: int) -> None:
 
         model = XGBoostForecaster()
         model.train(df)
+        _evaluate_quietly(model, df)
         save_path = "edupulse/model/saved/xgboost"
-        model.save(save_path, version=version)
-        print(f"[train] XGBoost model saved → {save_path}/v{version}/model.joblib")
+        model.save(save_path, version=version, df=df)
+        print(f"[train] XGBoost model saved → {save_path}/v{version}/")
 
     elif model_name == "prophet":
         try:
@@ -58,9 +59,10 @@ def _train_single(model_name: str, df: pd.DataFrame, version: int) -> None:
 
             model = ProphetForecaster()
             model.train(df)
+            _evaluate_quietly(model, df)
             save_path = "edupulse/model/saved/prophet"
-            model.save(save_path, version=version)
-            print(f"[train] Prophet model saved → {save_path}/v{version}/model.joblib")
+            model.save(save_path, version=version, df=df)
+            print(f"[train] Prophet model saved → {save_path}/v{version}/")
         except ImportError as exc:
             print(f"[train] Prophet 미설치 — 건너뜀: {exc}", file=sys.stderr)
 
@@ -70,15 +72,33 @@ def _train_single(model_name: str, df: pd.DataFrame, version: int) -> None:
 
             model = LSTMForecaster()
             model.train(df)
+            _evaluate_quietly(model, df)
             save_path = "edupulse/model/saved/lstm"
-            model.save(save_path, version=version)
-            print(f"[train] LSTM model saved → {save_path}/v{version}/model.pt")
+            model.save(save_path, version=version, df=df)
+            print(f"[train] LSTM model saved → {save_path}/v{version}/")
         except ImportError as exc:
             print(f"[train] PyTorch 미설치 — 건너뜀: {exc}", file=sys.stderr)
 
     else:
         print(f"[train] Unknown model: {model_name}", file=sys.stderr)
         sys.exit(1)
+
+
+def _evaluate_quietly(model, df: pd.DataFrame, n_splits: int = 3) -> None:
+    """학습 직후 MAPE 평가 (실패해도 학습 저장에 영향 없음).
+
+    Args:
+        model: 학습된 BaseForecaster 인스턴스
+        df: 평가용 DataFrame
+        n_splits: K-Fold 분할 수 (빠른 평가를 위해 기본 3)
+    """
+    try:
+        result = model.evaluate(df, n_splits=n_splits)
+        mape = result.get("mape")
+        if mape is not None:
+            print(f"[train] Quick evaluation MAPE: {mape:.2f}% (n_splits={n_splits})")
+    except Exception as exc:
+        print(f"[train] Evaluation skipped: {exc}", file=sys.stderr)
 
 
 if __name__ == "__main__":

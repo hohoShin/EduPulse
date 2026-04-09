@@ -1,13 +1,13 @@
 """수요 예측 및 관련 API 테스트. FakeForecaster 사용 — 모델 파일 불필요."""
-from edupulse.api.dependencies import MODEL_REGISTRY
+from edupulse.model.predict import _model_cache, MODEL_VERSION
 
 
 def test_predict_with_model_selection(client):
     """model_name 파라미터로 모델을 선택할 수 있어야 한다 (xgboost, prophet, ensemble)."""
     from tests.conftest import FakeForecaster
 
-    MODEL_REGISTRY["prophet"] = FakeForecaster()
-    MODEL_REGISTRY["ensemble"] = FakeForecaster()
+    _model_cache[f"prophet_v{MODEL_VERSION}"] = FakeForecaster()
+    _model_cache[f"ensemble_v{MODEL_VERSION}"] = FakeForecaster()
 
     for model_name in ("xgboost", "prophet", "ensemble"):
         response = client.post(
