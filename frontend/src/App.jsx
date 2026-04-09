@@ -4,7 +4,6 @@ import Layout from './components/Layout.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import Simulator from './pages/Simulator.jsx';
 import StatusPanel from './components/StatusPanel.jsx';
-import './App.css';
 
 const NotFound = () => (
   <div style={{ padding: '2rem' }}>

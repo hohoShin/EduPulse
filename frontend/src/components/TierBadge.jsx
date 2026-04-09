@@ -4,13 +4,33 @@ const TierBadge = ({ tier }) => {
   const getStyles = (tier) => {
     switch (tier?.toLowerCase()) {
       case 'high':
-        return { bg: '#dcfce7', text: '#166534', border: '#bbf7d0' };
+        return { 
+          bg: 'var(--color-success-bg)', 
+          text: 'var(--color-success-text)', 
+          border: 'var(--color-success-border)',
+          icon: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+        };
       case 'mid':
-        return { bg: '#fef9c3', text: '#854d0e', border: '#fef08a' };
+        return { 
+          bg: 'var(--color-warning-bg)', 
+          text: 'var(--color-warning-text)', 
+          border: 'var(--color-warning-border)',
+          icon: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+        };
       case 'low':
-        return { bg: '#fee2e2', text: '#991b1b', border: '#fecaca' };
+        return { 
+          bg: 'var(--color-error-bg)', 
+          text: 'var(--color-error-text)', 
+          border: 'var(--color-error-border)',
+          icon: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><polyline points="19 12 12 19 5 12"></polyline></svg>
+        };
       default:
-        return { bg: '#f1f5f9', text: '#475569', border: '#e2e8f0' };
+        return { 
+          bg: 'var(--color-background)', 
+          text: 'var(--color-text-muted)', 
+          border: 'var(--color-border)',
+          icon: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+        };
     }
   };
 
@@ -28,16 +48,21 @@ const TierBadge = ({ tier }) => {
   return (
     <span
       style={{
-        display: 'inline-block',
-        padding: '0.25rem 0.75rem',
-        borderRadius: '9999px',
-        fontSize: '0.875rem',
-        fontWeight: 'bold',
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '4px',
+        padding: '4px 10px',
+        borderRadius: 'var(--radius-full)',
+        fontSize: '0.75rem',
+        fontWeight: '600',
         backgroundColor: style.bg,
         color: style.text,
         border: `1px solid ${style.border}`,
+        letterSpacing: '0.025em',
+        boxShadow: 'var(--shadow-sm)'
       }}
     >
+      {style.icon}
       {tier ? `${getTierLabel(tier)} 등급` : '알 수 없음'}
     </span>
   );

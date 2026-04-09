@@ -82,18 +82,23 @@ const Simulator = () => {
 
   return (
     <div>
-      <h1 style={{ fontSize: '1.875rem', fontWeight: 'bold', marginBottom: '1.5rem', color: '#0f172a', display: 'flex', alignItems: 'center' }}>
-        시뮬레이터
-        <span style={{ marginLeft: '1rem', fontSize: '0.875rem', backgroundColor: '#fef3c7', color: '#92400e', padding: '0.25rem 0.75rem', borderRadius: '9999px', fontWeight: 'bold' }}>데모 버전</span>
-      </h1>
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">
+            시뮬레이터
+            <span className="badge">데모 버전</span>
+          </h1>
+          <p className="page-subtitle">신규 강좌 개설 시 예상되는 수요와 운영 지표를 시뮬레이션합니다.</p>
+        </div>
+      </div>
       
-      <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap' }}>
-        <div style={{ flex: '1 1 300px', backgroundColor: '#ffffff', padding: '1.5rem', borderRadius: '0.5rem', border: '1px solid #e2e8f0' }}>
-          <h2 style={{ fontSize: '1.25rem', fontWeight: '600', marginBottom: '1rem', color: '#1e293b' }}>강좌 정보</h2>
+      <div style={{ display: 'flex', gap: 'var(--space-6)', flexWrap: 'wrap', alignItems: 'flex-start' }}>
+        <div className="card" style={{ flex: '1 1 350px' }}>
+          <h2 className="card-header">강좌 정보 입력</h2>
           
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <div>
-              <label htmlFor="courseName" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', color: '#475569' }}>강좌명</label>
+          <form onSubmit={handleSubmit}>
+            <div className="form-group">
+              <label htmlFor="courseName" className="form-label">강좌명</label>
               <input
                 id="courseName"
                 name="courseName"
@@ -101,18 +106,18 @@ const Simulator = () => {
                 value={formData.courseName}
                 onChange={handleChange}
                 placeholder="예: 고급 게임 엔진 디자인"
-                style={{ width: '100%', padding: '0.5rem', borderRadius: '0.375rem', border: '1px solid #cbd5e1' }}
+                className="form-control"
               />
             </div>
             
-            <div>
-              <label htmlFor="field" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', color: '#475569' }}>분야</label>
+            <div className="form-group">
+              <label htmlFor="field" className="form-label">분야</label>
               <select
                 id="field"
                 name="field"
                 value={formData.field}
                 onChange={handleChange}
-                style={{ width: '100%', padding: '0.5rem', borderRadius: '0.375rem', border: '1px solid #cbd5e1' }}
+                className="form-control"
               >
                 <option value="">분야 선택</option>
                 <option value="coding">코딩</option>
@@ -122,47 +127,51 @@ const Simulator = () => {
               </select>
             </div>
             
-            <div>
-              <label htmlFor="startDate" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', color: '#475569' }}>개강 예정일</label>
+            <div className="form-group">
+              <label htmlFor="startDate" className="form-label">개강 예정일</label>
               <input
                 id="startDate"
                 name="startDate"
                 type="date"
                 value={formData.startDate}
                 onChange={handleChange}
-                style={{ width: '100%', padding: '0.5rem', borderRadius: '0.375rem', border: '1px solid #cbd5e1' }}
+                className="form-control"
               />
             </div>
 
             {validationError && (
-              <div style={{ color: '#ef4444', fontSize: '0.875rem', marginTop: '0.5rem' }}>
+              <div style={{ color: 'var(--color-error-text)', fontSize: '0.875rem', marginTop: 'var(--space-2)', display: 'flex', alignItems: 'center', gap: 'var(--space-1)' }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
                 {validationError}
               </div>
             )}
             
-            <button
-              type="submit"
-              disabled={uiState.state === 'loading'}
-              style={{
-                marginTop: '1rem',
-                padding: '0.75rem',
-                backgroundColor: '#2563eb',
-                color: '#ffffff',
-                border: 'none',
-                borderRadius: '0.375rem',
-                fontWeight: 'bold',
-                cursor: uiState.state === 'loading' ? 'not-allowed' : 'pointer',
-                opacity: uiState.state === 'loading' ? 0.7 : 1
-              }}
-            >
-              {uiState.state === 'loading' ? '시뮬레이션 중...' : '시뮬레이션 실행'}
-            </button>
+            <div style={{ marginTop: 'var(--space-6)' }}>
+              <button
+                type="submit"
+                disabled={uiState.state === 'loading'}
+                className="btn-primary"
+                style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 'var(--space-2)' }}
+              >
+                {uiState.state === 'loading' ? (
+                  <>
+                    <svg className="animate-spin" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="2" x2="12" y2="6"></line><line x1="12" y1="18" x2="12" y2="22"></line><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line><line x1="2" y1="12" x2="6" y2="12"></line><line x1="18" y1="12" x2="22" y2="12"></line><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line></svg>
+                    시뮬레이션 분석 중...
+                  </>
+                ) : (
+                  <>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                    시뮬레이션 실행
+                  </>
+                )}
+              </button>
+            </div>
           </form>
         </div>
 
         <div style={{ flex: '2 1 500px' }}>
           {uiState.state === 'empty' && (
-             <div style={{ backgroundColor: '#ffffff', padding: '1.5rem', borderRadius: '0.5rem', border: '1px solid #e2e8f0', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+             <div className="card" style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px dashed var(--color-border)', backgroundColor: 'var(--color-surface-hover)' }}>
                <StatusPanel 
                  variant="empty" 
                  title="시뮬레이션 준비 완료" 
@@ -172,80 +181,86 @@ const Simulator = () => {
           )}
 
           {uiState.state === 'loading' && (
-            <div style={{ backgroundColor: '#ffffff', padding: '1.5rem', borderRadius: '0.5rem', border: '1px solid #e2e8f0', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <StatusPanel variant="loading" title="수요 시뮬레이션 중 (데모)..." message="시연 목적의 가상 예측 결과를 생성 중입니다." />
+            <div className="card" style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <StatusPanel variant="loading" title="수요 시뮬레이션 분석 중..." message="과거 데이터와 트렌드를 바탕으로 수요를 예측하고 있습니다." />
             </div>
           )}
 
           {uiState.state === 'error' && (
-            <div style={{ backgroundColor: '#ffffff', padding: '1.5rem', borderRadius: '0.5rem', border: '1px solid #e2e8f0', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div className="card" style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <StatusPanel variant="error" title="시뮬레이션 실패" message={uiState.error || '현재 시뮬레이션을 완료할 수 없습니다.'} />
             </div>
           )}
 
           {uiState.state === 'success' && uiState.data && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
               {uiState.data.demandTier?.toLowerCase() === 'low' && (
                 <AlertPanel alerts={getLowTierAlerts(uiState.data)} />
               )}
               
-              <div style={{ backgroundColor: '#ffffff', padding: '1.5rem', borderRadius: '0.5rem', border: '1px solid #e2e8f0' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem', borderBottom: '1px solid #f1f5f9', paddingBottom: '1rem' }}>
+              <div className="card">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--space-6)', borderBottom: '1px solid var(--color-border)', paddingBottom: 'var(--space-4)' }}>
                   <div>
-                    <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', margin: '0 0 0.5rem 0', color: '#1e293b' }}>
+                    <h2 style={{ fontSize: '1.5rem', fontWeight: '700', margin: '0 0 var(--space-2) 0', color: 'var(--color-text-main)' }}>
                       {uiState.data.courseName}
                     </h2>
-                    <p style={{ margin: 0, color: '#64748b', textTransform: 'capitalize' }}>분야: {getFieldLabel(uiState.data.field)}</p>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                      {new Date(formData.startDate).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })} 개강 예정
+                      <span style={{ color: 'var(--color-border)' }}>|</span>
+                      분야: {getFieldLabel(uiState.data.field)}
+                    </div>
                   </div>
                   <TierBadge tier={uiState.data.demandTier} />
                 </div>
                 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem' }}>
-                  <div>
-                    <h3 style={{ fontSize: '0.875rem', fontWeight: '600', color: '#64748b', textTransform: 'uppercase', marginBottom: '0.5rem' }}>수요 예측</h3>
-                    <div style={{ fontSize: '2.25rem', fontWeight: 'bold', color: '#0f172a', marginBottom: '0.25rem' }}>
-                      {uiState.data.predictedCount} <span style={{ fontSize: '1rem', fontWeight: 'normal', color: '#64748b' }}>명</span>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 'var(--space-6)' }}>
+                  <div style={{ backgroundColor: 'var(--color-background)', padding: 'var(--space-4)', borderRadius: 'var(--radius-md)' }}>
+                    <h3 className="metric-label">수요 예측</h3>
+                    <div className="metric-value" style={{ color: 'var(--color-primary)' }}>
+                      {uiState.data.predictedCount} <span style={{ fontSize: '1rem', fontWeight: '500', color: 'var(--color-text-muted)' }}>명</span>
                     </div>
-                    <div style={{ fontSize: '0.875rem', color: '#475569' }}>
-                      범위: {uiState.data.confidenceInterval.lower} - {uiState.data.confidenceInterval.upper}
-                    </div>
-                  </div>
-
-                  <div>
-                    <h3 style={{ fontSize: '0.875rem', fontWeight: '600', color: '#64748b', textTransform: 'uppercase', marginBottom: '0.5rem' }}>인력 & 운영</h3>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ color: '#475569' }}>필요 강사 수:</span>
-                        <span style={{ fontWeight: '600', color: '#1e293b' }}>{uiState.data.operations.instructors}</span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ color: '#475569' }}>필요 강의실 수:</span>
-                        <span style={{ fontWeight: '600', color: '#1e293b' }}>{uiState.data.operations.classrooms}</span>
-                      </div>
+                    <div style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)', marginTop: 'var(--space-1)' }}>
+                      신뢰 구간: {uiState.data.confidenceInterval.lower} ~ {uiState.data.confidenceInterval.upper}명
                     </div>
                   </div>
 
-                  <div>
-                    <h3 style={{ fontSize: '0.875rem', fontWeight: '600', color: '#64748b', textTransform: 'uppercase', marginBottom: '0.5rem' }}>마케팅 가이드</h3>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ color: '#475569' }}>광고 시작:</span>
-                        <span style={{ fontWeight: '600', color: '#1e293b' }}>{uiState.data.marketing.adWeeksBefore}주 전</span>
+                  <div style={{ backgroundColor: 'var(--color-background)', padding: 'var(--space-4)', borderRadius: 'var(--radius-md)' }}>
+                    <h3 className="metric-label">운영 가이드</h3>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>필요 강사 수</span>
+                        <span style={{ fontWeight: '600', color: 'var(--color-text-main)' }}>{uiState.data.operations.instructors}명</span>
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ color: '#475569' }}>얼리버드 기간:</span>
-                        <span style={{ fontWeight: '600', color: '#1e293b' }}>{uiState.data.marketing.earlybirdDays}일</span>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>권장 강의실</span>
+                        <span style={{ fontWeight: '600', color: 'var(--color-text-main)' }}>{uiState.data.operations.classrooms}개</span>
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ color: '#475569' }}>권장 할인율:</span>
-                        <span style={{ fontWeight: '600', color: '#1e293b' }}>{(uiState.data.marketing.discountRate * 100).toFixed(0)}%</span>
+                    </div>
+                  </div>
+
+                  <div style={{ backgroundColor: 'var(--color-background)', padding: 'var(--space-4)', borderRadius: 'var(--radius-md)' }}>
+                    <h3 className="metric-label">마케팅 제안</h3>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>캠페인 시작</span>
+                        <span style={{ fontWeight: '600', color: 'var(--color-text-main)' }}>{uiState.data.marketing.adWeeksBefore}주 전</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>얼리버드 혜택</span>
+                        <span style={{ fontWeight: '600', color: 'var(--color-text-main)' }}>{uiState.data.marketing.earlybirdDays}일</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>권장 할인율</span>
+                        <span style={{ fontWeight: '600', color: 'var(--color-success-text)' }}>{(uiState.data.marketing.discountRate * 100).toFixed(0)}%</span>
                       </div>
                     </div>
                   </div>
                 </div>
                 
-                <div style={{ marginTop: '2rem', fontSize: '0.75rem', color: '#94a3b8', textAlign: 'right' }}>
-                  모델: {uiState.data.modelUsed} (가상 데이터) | 생성일: {new Date(uiState.data.predictionDate).toLocaleString()}
+                <div style={{ marginTop: 'var(--space-6)', paddingTop: 'var(--space-4)', borderTop: '1px solid var(--color-border)', fontSize: '0.75rem', color: 'var(--color-text-light)', display: 'flex', justifyContent: 'space-between' }}>
+                  <span>AI 모델: {uiState.data.modelUsed}</span>
+                  <span>분석 시간: {new Date(uiState.data.predictionDate).toLocaleString('ko-KR')}</span>
                 </div>
               </div>
             </div>
