@@ -146,7 +146,7 @@ def build_features(course_name: str, start_date: str, field: str) -> pd.DataFram
     - 분야 → field_encoded
 
     Args:
-        course_name: 과정명
+        course_name: 과정명 (현재 모델에서 미사용 — 향후 과정별 세분화 시 활용 예정)
         start_date: 시작일 (YYYY-MM-DD)
         field: 분야 ('coding', 'security', 'game', 'art')
 
