@@ -72,10 +72,6 @@ class ProphetForecaster(BaseForecaster):
         self._regressors: list[str] = []
         self._field_regressors: dict[str, list[str]] = {}
 
-    # ------------------------------------------------------------------
-    # 내부 헬퍼
-    # ------------------------------------------------------------------
-
     def _to_prophet_df(self, df: pd.DataFrame) -> pd.DataFrame:
         """DataFrame을 Prophet 형식(ds, y, regressors)으로 변환.
 
@@ -114,10 +110,6 @@ class ProphetForecaster(BaseForecaster):
             model.add_regressor(reg)
         return model
 
-    # ------------------------------------------------------------------
-    # BaseForecaster 구현
-    # ------------------------------------------------------------------
-
     def train(self, df: pd.DataFrame) -> None:
         """Prophet 모델 학습. field 컬럼이 있으면 분야별 개별 학습.
 
@@ -153,7 +145,6 @@ class ProphetForecaster(BaseForecaster):
         Returns:
             PredictionResult 인스턴스
         """
-        # 분야별 모델 선택
         model = self._model
         regressors = self._regressors
         if self._field_models and "field" in features.columns:
@@ -164,13 +155,11 @@ class ProphetForecaster(BaseForecaster):
         if model is None:
             raise RuntimeError("모델이 학습되지 않았습니다. train() 또는 load()를 먼저 호출하세요.")
 
-        # ds 컬럼 구성
         if DATE_COLUMN in features.columns:
             future = pd.DataFrame({"ds": pd.to_datetime(features[DATE_COLUMN])})
         else:
             future = pd.DataFrame({"ds": [pd.Timestamp.today().normalize()]})
 
-        # 회귀자 추가
         for reg in regressors:
             if reg in features.columns:
                 future[reg] = features[reg].fillna(0).values[: len(future)]
@@ -205,7 +194,6 @@ class ProphetForecaster(BaseForecaster):
         Returns:
             {'mape': float, 'n_splits': int}
         """
-        # 분야별 분리 평가
         if "field" in df.columns and df["field"].nunique() > 1:
             return self._evaluate_per_field(df, n_splits)
 
@@ -281,10 +269,6 @@ class ProphetForecaster(BaseForecaster):
         if self._mape is None:
             self._mape = avg_mape
         return {"mape": avg_mape, "n_splits": n_splits}
-
-    # ------------------------------------------------------------------
-    # 저장 / 로딩
-    # ------------------------------------------------------------------
 
     def save(self, path: str, version: int, df: pd.DataFrame | None = None) -> None:
         """모델을 joblib으로 직렬화 저장.

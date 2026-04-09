@@ -7,8 +7,6 @@ import numpy as np
 import pandas as pd
 
 from edupulse.constants import classify_demand
-
-logger = logging.getLogger(__name__)
 from edupulse.model.base import (
     BaseForecaster,
     ModelMetadata,
@@ -17,6 +15,8 @@ from edupulse.model.base import (
     _get_package_version,
     save_metadata,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class EnsembleForecaster(BaseForecaster):
@@ -98,7 +98,6 @@ class EnsembleForecaster(BaseForecaster):
             정규화된 가중치 리스트 (names 순서 대응)
         """
         if self._weights is None:
-            # 균등 가중치
             n = len(names)
             return [1.0 / n] * n
 
@@ -163,13 +162,10 @@ class EnsembleForecaster(BaseForecaster):
         predicted_enrollment = max(0, round(avg_enrollment))
         demand_tier = classify_demand(predicted_enrollment)
 
-        # confidence: 가중 평균 (모델 수 증가에 따른 구간 과대추정 방지)
         confidence_lower = max(0.0, round(float(np.average(lowers, weights=weights)), 1))
         confidence_upper = round(float(np.average(uppers, weights=weights)), 1)
 
         avg_mape = float(np.mean(mapes)) if mapes else None
-
-        # model_used: "ensemble(xgboost+prophet)" 형식
         model_used = f"ensemble({'+'.join(used_names)})"
 
         return PredictionResult(

@@ -51,7 +51,6 @@ def retrain(model_name: str = "xgboost", version: int | None = None, dry_run: bo
 
     print(f"[retrain] Starting retraining: model={model_name}, version={version}")
 
-    # 1단계: 전처리 파이프라인 → warehouse
     print("[retrain] Step 1: Building training dataset...")
     try:
         from edupulse.preprocessing.merger import build_training_dataset
@@ -61,7 +60,6 @@ def retrain(model_name: str = "xgboost", version: int | None = None, dry_run: bo
         print(f"[retrain] ERROR in preprocessing: {e}", file=sys.stderr)
         sys.exit(1)
 
-    # 2단계: 모델 학습
     print(f"[retrain] Step 2: Training {model_name} model...")
     try:
         from edupulse.model.train import train_model
@@ -71,24 +69,20 @@ def retrain(model_name: str = "xgboost", version: int | None = None, dry_run: bo
         print(f"[retrain] ERROR in training: {e}", file=sys.stderr)
         sys.exit(1)
 
-    # 3단계: 모델 평가
-    print("[retrain] Step 3: Evaluating model...")
-    print("[retrain] NOTE: 학습 데이터로 K-Fold 교차검증 수행 (holdout 아님)")
+    print("[retrain] Step 3: Evaluating model (K-Fold on training data)...")
     try:
         from edupulse.model.evaluate import evaluate_model
         results = evaluate_model(model_name=model_name)
         print(f"[retrain] Evaluation complete — MAPE: {results['mape']:.2f}%")
     except Exception as e:
         print(f"[retrain] WARNING: Evaluation failed: {e}", file=sys.stderr)
-        # 평가 실패는 치명적이지 않음 — 학습은 성공했으므로 계속
 
-    # 동일 프로세스 내 모델 캐시 무효화 (API 서버와 동일 프로세스일 경우)
     try:
         from edupulse.model.predict import clear_model_cache
         clear_model_cache()
         print("[retrain] Model cache cleared.")
     except Exception:
-        pass  # import 실패 시 무시 (독립 실행 환경)
+        pass
 
     print(f"[retrain] Retraining complete: {model_name} v{version}")
 

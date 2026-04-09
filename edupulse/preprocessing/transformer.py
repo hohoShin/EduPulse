@@ -61,18 +61,16 @@ def add_lag_features(
 
     df = df.copy()
 
-    # 날짜 컬럼 파싱
     date_col = _detect_date_col(df)
     if date_col:
         df[date_col] = pd.to_datetime(df[date_col])
 
-    # 날짜순 정렬: shift()가 행 위치 기반이므로 정렬이 선행되어야 lag가 정확하다.
+    # shift()가 행 위치 기반이므로 lag 계산 전 반드시 날짜순 정렬
     if date_col and "field" in df.columns:
         df = df.sort_values(["field", date_col]).reset_index(drop=True)
     elif date_col:
         df = df.sort_values(date_col).reset_index(drop=True)
 
-    # lag features (분야별 groupby로 경계 넘김 방지)
     if target_col in df.columns:
         if "field" in df.columns:
             for lag in lags:
@@ -89,14 +87,12 @@ def add_lag_features(
                 df[target_col].rolling(window=4, min_periods=1).mean()
             )
 
-    # 순환 인코딩 (month_sin, month_cos) — compute_month_encoding() 단일 소스
     if date_col and pd.api.types.is_datetime64_any_dtype(df[date_col]):
         month = df[date_col].dt.month
         encodings = month.apply(lambda m: compute_month_encoding(m))
         df["month_sin"] = encodings.apply(lambda t: t[0])
         df["month_cos"] = encodings.apply(lambda t: t[1])
 
-    # 분야 label encoding — compute_field_encoding() 단일 소스
     if "field" in df.columns:
         df["field_encoded"] = df["field"].apply(compute_field_encoding).astype(int)
 

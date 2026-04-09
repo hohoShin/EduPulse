@@ -29,7 +29,6 @@ def merge_datasets(
     """
     merged = enrollment_df.copy()
     merged[date_col] = pd.to_datetime(merged[date_col])
-    # 주간 정렬: 날짜를 주 시작일(월요일)로 정규화
     merged[date_col] = merged[date_col].dt.to_period("W").dt.start_time
 
     join_keys = ["field", date_col]
@@ -48,7 +47,7 @@ def merge_datasets(
         job_cols = job_df[join_keys + ["job_count"]].copy()
         merged = merged.merge(job_cols, on=join_keys, how="left")
 
-    # 병합 후 결측치 forward fill (분야 간 데이터 누수 방지: field 경계 내에서만 ffill)
+    # 분야 경계 내에서만 ffill (분야 간 데이터 누수 방지)
     numeric_cols = merged.select_dtypes(include="number").columns
     if "field" in merged.columns:
         merged[numeric_cols] = merged.groupby("field")[numeric_cols].ffill()
@@ -73,11 +72,9 @@ def build_training_dataset(
     Returns:
         병합된 학습용 DataFrame.
     """
-    # 내부 데이터 로딩
     enrollment_path = os.path.join(raw_internal_dir, "enrollment_history.csv")
     enrollment_df = pd.read_csv(enrollment_path)
 
-    # 외부 데이터 로딩 (파일 없으면 None → 경고 후 해당 컬럼 없이 진행)
     search_path = os.path.join(raw_external_dir, "search_trends.csv")
     search_df = _load_csv_safe(search_path)
     if search_df is None:
@@ -90,15 +87,12 @@ def build_training_dataset(
 
     merged = merge_datasets(enrollment_df, search_df, job_df)
 
-    # 전처리: 결측치 보간 + 이상치 클리핑
     from edupulse.preprocessing.cleaner import clean_data
     merged = clean_data(merged, target_col="enrollment_count")
 
-    # lag feature 추가 (XGBoost 피처 생성)
     from edupulse.preprocessing.transformer import add_lag_features
     merged = add_lag_features(merged, target_col="enrollment_count")
 
-    # warehouse 디렉토리 생성 후 저장
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     merged.to_csv(output_path, index=False)
 

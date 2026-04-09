@@ -18,24 +18,20 @@ from edupulse.preprocessing.transformer import compute_field_encoding, compute_m
 
 logger = logging.getLogger(__name__)
 
-# 단일 모델 버전 상수 — dependencies.py에서도 이 값을 참조한다.
+# dependencies.py에서도 이 값을 참조한다.
 MODEL_VERSION = 1
 
-# 데이터 파일 경로
 _ENROLLMENT_PATH = "edupulse/data/raw/internal/enrollment_history.csv"
 _SEARCH_TRENDS_PATH = "edupulse/data/raw/external/search_trends.csv"
 _JOB_POSTINGS_PATH = "edupulse/data/raw/external/job_postings.csv"
 
-# 모듈 레벨 모델 캐시 및 스레드 잠금
 _model_cache: dict[str, BaseForecaster] = {}
-_model_mtime: dict[str, float] = {}  # 캐시 시점의 모델 파일 mtime
+_model_mtime: dict[str, float] = {}
 _cache_lock = threading.Lock()
 
-# CSV 데이터 캐시 — build_features()의 반복 I/O 방지
 _data_cache: dict[str, pd.DataFrame] = {}
 _data_cache_lock = threading.Lock()
 
-# 모델 이름 → 저장 경로 매핑
 _MODEL_PATHS = {
     "xgboost": "edupulse/model/saved/xgboost",
     "prophet": "edupulse/model/saved/prophet",
@@ -50,7 +46,6 @@ def _get_model_mtime(model_name: str, version: int) -> float:
     base = _MODEL_PATHS.get(model_name, "")
     if not base:
         return 0.0
-    # 모델 디렉토리 내 주요 파일 중 가장 최신 mtime
     model_dir = Path(base) / f"v{version}"
     if not model_dir.exists():
         return 0.0
@@ -82,7 +77,6 @@ def load_model(model_name: str, version: int = MODEL_VERSION) -> BaseForecaster:
     """
     key = f"{model_name}_v{version}"
 
-    # 빠른 경로: 캐시 히트 + mtime 유효
     with _cache_lock:
         if key in _model_cache:
             current_mtime = _get_model_mtime(model_name, version)
@@ -91,11 +85,10 @@ def load_model(model_name: str, version: int = MODEL_VERSION) -> BaseForecaster:
             logger.info("모델 파일 갱신 감지: %s (리로딩)", key)
             del _model_cache[key]
 
-    # 느린 경로: 잠금 바깥에서 I/O 수행 (동시 로딩 가능하나 안전)
+    # 잠금 바깥에서 I/O 수행 (동시 로딩 허용)
     model = _do_load_model(model_name, version)
     current_mtime = _get_model_mtime(model_name, version)
 
-    # 캐시 기록 (이중 확인으로 중복 방지)
     with _cache_lock:
         if key not in _model_cache:
             _model_cache[key] = model
@@ -153,7 +146,6 @@ def _load_ensemble(version: int = MODEL_VERSION) -> "BaseForecaster":
 
     ensemble = EnsembleForecaster()
 
-    # XGBoost (항상 시도)
     try:
         from edupulse.model.xgboost_model import XGBoostForecaster
 
@@ -163,7 +155,6 @@ def _load_ensemble(version: int = MODEL_VERSION) -> "BaseForecaster":
     except Exception as exc:
         logger.warning("앙상블: XGBoost 로딩 실패 — %s", exc)
 
-    # Prophet (선택적)
     try:
         from edupulse.model.prophet_model import ProphetForecaster
 
@@ -173,7 +164,6 @@ def _load_ensemble(version: int = MODEL_VERSION) -> "BaseForecaster":
     except Exception as exc:
         logger.warning("앙상블: Prophet 로딩 실패 — %s", exc)
 
-    # LSTM (선택적)
     try:
         from edupulse.model.lstm_model import LSTMForecaster
 
@@ -204,7 +194,7 @@ def _load_csv_cached(path: str) -> pd.DataFrame | None:
         if os.path.exists(path):
             _data_cache[path] = pd.read_csv(path)
             return _data_cache[path]
-        return None  # 미존재 파일은 캐시하지 않음 — 이후 생성 시 자동 감지
+        return None  # 파일 생성 시 자동 감지를 위해 캐시하지 않음
 
 
 def build_features(course_name: str, start_date: str, field: str) -> pd.DataFrame:
@@ -230,13 +220,10 @@ def build_features(course_name: str, start_date: str, field: str) -> pd.DataFram
     dt = datetime.date.fromisoformat(start_date)
     target_date = pd.Timestamp(start_date)
 
-    # --- 1) month_sin, month_cos — transformer.py 공유 함수 사용 ---
     month_sin, month_cos = compute_month_encoding(dt.month)
-
-    # --- 2) field_encoded — transformer.py 공유 함수 사용 ---
     field_encoded = compute_field_encoding(field)
 
-    # --- 3) lag features + rolling_mean (enrollment_history.csv) ---
+    # lag features + rolling_mean (enrollment_history.csv)
     # 학습 파이프라인(merger.py)과 동일하게 연속 주간 시계열(asfreq)로 정렬 후
     # 인덱스 기반 shift(N) = 정확히 N주 전 보장 (결측 주 있어도 일치)
     target_date_aligned = pd.Timestamp(start_date).to_period("W").start_time
@@ -273,7 +260,6 @@ def build_features(course_name: str, start_date: str, field: str) -> pd.DataFram
         except Exception as e:
             logger.warning("등록 이력 로딩 실패, lag=0 사용: %s", e)
 
-    # --- 4) search_volume (search_trends.csv) ---
     search_volume = 0.0
     search_raw = _load_csv_cached(_SEARCH_TRENDS_PATH)
     if search_raw is not None:
@@ -287,7 +273,6 @@ def build_features(course_name: str, start_date: str, field: str) -> pd.DataFram
         except Exception as e:
             logger.warning("검색 트렌드 로딩 실패, search_volume=0 사용: %s", e)
 
-    # --- 5) job_count (job_postings.csv) ---
     job_count = 0.0
     job_raw = _load_csv_cached(_JOB_POSTINGS_PATH)
     if job_raw is not None:
@@ -301,7 +286,6 @@ def build_features(course_name: str, start_date: str, field: str) -> pd.DataFram
         except Exception as e:
             logger.warning("채용 공고 로딩 실패, job_count=0 사용: %s", e)
 
-    # --- 조립 ---
     row = {
         "date": start_date,
         "field": field,

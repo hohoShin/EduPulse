@@ -81,7 +81,6 @@ def _check_feature_compatibility(path: str, version: int, current_features: list
             f"학습: {saved}, 현재: {current_features}"
         )
 
-    # LSTM은 피처 순서에 민감 — 순서 변경도 잘못된 예측을 유발한다
     if list(saved) != list(current_features):
         raise RuntimeError(
             f"LSTM 피처 순서/구성 불일치: "
@@ -180,9 +179,7 @@ def _build_sequences_per_field(
     if "field" not in df.columns or df["field"].nunique() <= 1:
         return _build_sequences(X_scaled, y_scaled, sequence_length)
 
-    # 분야별 시퀀스 생성
     all_xs, all_ys = [], []
-    # 원본 df의 인덱스를 사용하여 분야별 분리
     for field in df["field"].unique():
         mask = df["field"].values == field
         field_X = X_scaled[mask]
@@ -348,10 +345,6 @@ class LSTMForecaster(BaseForecaster):
         self._mape: float | None = None
         self._is_fitted: bool = False
 
-    # ------------------------------------------------------------------
-    # 내부 헬퍼
-    # ------------------------------------------------------------------
-
     def _prepare_arrays(
         self, df: pd.DataFrame
     ) -> tuple[np.ndarray, np.ndarray]:
@@ -364,10 +357,6 @@ class LSTMForecaster(BaseForecaster):
     def _make_model(self):
         """EnrollmentLSTM 인스턴스 생성 (torch 필요)."""
         return EnrollmentLSTM()
-
-    # ------------------------------------------------------------------
-    # BaseForecaster 구현
-    # ------------------------------------------------------------------
 
     def train(
         self,
@@ -392,7 +381,6 @@ class LSTMForecaster(BaseForecaster):
         torch = _get_torch()
         device = get_device()
 
-        # 분야별 시퀀스 생성 (스케일러 fit 포함)
         xs, ys = _build_sequences_per_field(
             df, FEATURE_COLUMNS, TARGET_COLUMN, SEQUENCE_LENGTH,
             self._scaler_X, self._scaler_y, fit_scalers=True,
@@ -403,12 +391,10 @@ class LSTMForecaster(BaseForecaster):
                 f"sequence_length({SEQUENCE_LENGTH})보다 많아야 합니다."
             )
 
-        # Train/Val 분할 (시간 순서 유지) — 증강 BEFORE가 아닌 분할 AFTER
         val_size = max(1, int(len(xs) * VAL_RATIO))
         xs_train, xs_val = xs[:-val_size], xs[-val_size:]
         ys_train, ys_val = ys[:-val_size], ys[-val_size:]
 
-        # 증강: 학습 데이터에만 적용 (검증 데이터는 원본 유지)
         if augment:
             xs_train, ys_train = _augment_sequences(xs_train, ys_train)
 
@@ -443,7 +429,6 @@ class LSTMForecaster(BaseForecaster):
         X_raw = features[FEATURE_COLUMNS].fillna(0).values.astype(np.float32)
         X_scaled = self._scaler_X.transform(X_raw)
 
-        # sequence_length에 맞게 패딩 (추론 시 데이터가 부족할 수 있음)
         if len(X_scaled) < SEQUENCE_LENGTH:
             pad = np.zeros(
                 (SEQUENCE_LENGTH - len(X_scaled), X_scaled.shape[1]),
@@ -451,7 +436,6 @@ class LSTMForecaster(BaseForecaster):
             )
             X_scaled = np.vstack([pad, X_scaled])
 
-        # 마지막 SEQUENCE_LENGTH 행을 시퀀스로 사용
         seq = X_scaled[-SEQUENCE_LENGTH:]
         X_tensor = torch.tensor(seq).unsqueeze(0).to(device)  # (1, seq, feat)
 
@@ -459,7 +443,6 @@ class LSTMForecaster(BaseForecaster):
         with torch.no_grad():
             raw_scaled = self._model(X_tensor).item()
 
-        # 역변환
         raw_pred = float(
             self._scaler_y.inverse_transform([[raw_scaled]])[0][0]
         )
@@ -527,12 +510,10 @@ class LSTMForecaster(BaseForecaster):
             if len(xs_tr) == 0:
                 continue
 
-            # inner train/val split (시간 순서 유지)
             inner_val_size = max(1, int(len(xs_tr) * VAL_RATIO))
             xs_inner_tr, xs_inner_val = xs_tr[:-inner_val_size], xs_tr[-inner_val_size:]
             ys_inner_tr, ys_inner_val = ys_tr[:-inner_val_size], ys_tr[-inner_val_size:]
 
-            # 증강: inner 학습 데이터에만 적용
             xs_inner_tr, ys_inner_tr = _augment_sequences(xs_inner_tr, ys_inner_tr)
 
             device = get_device()
@@ -597,10 +578,6 @@ class LSTMForecaster(BaseForecaster):
         if self._mape is None:
             self._mape = avg_mape
         return {"mape": avg_mape, "n_splits": n_splits}
-
-    # ------------------------------------------------------------------
-    # 저장 / 로딩
-    # ------------------------------------------------------------------
 
     def save(self, path: str, version: int, df: pd.DataFrame | None = None) -> None:
         """모델 가중치 + 스케일러를 저장.
@@ -685,7 +662,6 @@ class LSTMForecaster(BaseForecaster):
 
         device = get_device()
 
-        # 피처 불일치를 load_state_dict 전에 검사하여 크래시 대신 명확한 에러 제공
         _check_feature_compatibility(path, version, FEATURE_COLUMNS)
 
         self._model = self._make_model().to(device)

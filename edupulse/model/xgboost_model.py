@@ -82,7 +82,6 @@ class XGBoostForecaster(BaseForecaster):
 
         demand_tier = classify_demand(predicted_enrollment)
 
-        # confidence interval: 예측값 ± (MAPE * 예측값) 근사
         margin = (self._mape / 100.0 * raw_pred) if self._mape else (raw_pred * 0.15)
         confidence_lower = max(0.0, round(raw_pred - margin, 1))
         confidence_upper = round(raw_pred + margin, 1)
@@ -121,7 +120,6 @@ class XGBoostForecaster(BaseForecaster):
             model.fit(X_train, y_train)
             preds = model.predict(X_val)
 
-            # 0 나누기 방지
             nonzero = y_val != 0
             if nonzero.any():
                 fold_mape = float(np.mean(np.abs((y_val[nonzero] - preds[nonzero]) / y_val[nonzero])) * 100)
