@@ -71,6 +71,7 @@ def load_model(model_name: str, version: int = MODEL_VERSION) -> BaseForecaster:
     """모델 캐시에서 반환하거나 새로 로딩 (스레드 안전).
 
     retrain으로 모델 파일이 갱신되면 mtime 비교를 통해 자동 리로딩한다.
+    I/O(모델 파일 로딩)는 잠금 바깥에서 수행하여 동시성을 보장한다.
 
     Args:
         model_name: 모델 이름 ('xgboost', 'prophet', 'lstm', 'ensemble')
@@ -81,51 +82,60 @@ def load_model(model_name: str, version: int = MODEL_VERSION) -> BaseForecaster:
     """
     key = f"{model_name}_v{version}"
 
+    # 빠른 경로: 캐시 히트 + mtime 유효
     with _cache_lock:
-        # 캐시 히트 + 파일 변경 여부 확인
         if key in _model_cache:
             current_mtime = _get_model_mtime(model_name, version)
             if current_mtime <= _model_mtime.get(key, 0.0):
                 return _model_cache[key]
-            # 파일이 갱신됨 — 캐시 무효화 후 재로딩
             logger.info("모델 파일 갱신 감지: %s (리로딩)", key)
             del _model_cache[key]
 
+    # 느린 경로: 잠금 바깥에서 I/O 수행 (동시 로딩 가능하나 안전)
+    model = _do_load_model(model_name, version)
+    current_mtime = _get_model_mtime(model_name, version)
+
+    # 캐시 기록 (이중 확인으로 중복 방지)
+    with _cache_lock:
         if key not in _model_cache:
-            if model_name == "xgboost":
-                from edupulse.model.xgboost_model import XGBoostForecaster
-
-                model: BaseForecaster = XGBoostForecaster()
-                model.load(f"edupulse/model/saved/xgboost", version=version)
-
-            elif model_name == "prophet":
-                try:
-                    from edupulse.model.prophet_model import ProphetForecaster
-
-                    model = ProphetForecaster()
-                    model.load(f"edupulse/model/saved/prophet", version=version)
-                except ImportError as exc:
-                    raise ImportError("Prophet 미설치. pip install prophet") from exc
-
-            elif model_name == "lstm":
-                try:
-                    from edupulse.model.lstm_model import LSTMForecaster
-
-                    model = LSTMForecaster()
-                    model.load(f"edupulse/model/saved/lstm", version=version)
-                except ImportError as exc:
-                    raise ImportError("PyTorch 미설치. pip install torch") from exc
-
-            elif model_name == "ensemble":
-                model = _load_ensemble(version=version)
-
-            else:
-                raise ValueError(f"Unknown model_name: {model_name}")
-
             _model_cache[key] = model
-            _model_mtime[key] = _get_model_mtime(model_name, version)
+            _model_mtime[key] = current_mtime
+        return _model_cache[key]
 
-    return _model_cache[key]
+
+def _do_load_model(model_name: str, version: int) -> BaseForecaster:
+    """모델 인스턴스를 생성하고 디스크에서 로딩. 잠금 없이 호출된다."""
+    if model_name == "xgboost":
+        from edupulse.model.xgboost_model import XGBoostForecaster
+
+        model: BaseForecaster = XGBoostForecaster()
+        model.load("edupulse/model/saved/xgboost", version=version)
+
+    elif model_name == "prophet":
+        try:
+            from edupulse.model.prophet_model import ProphetForecaster
+
+            model = ProphetForecaster()
+            model.load("edupulse/model/saved/prophet", version=version)
+        except ImportError as exc:
+            raise ImportError("Prophet 미설치. pip install prophet") from exc
+
+    elif model_name == "lstm":
+        try:
+            from edupulse.model.lstm_model import LSTMForecaster
+
+            model = LSTMForecaster()
+            model.load("edupulse/model/saved/lstm", version=version)
+        except ImportError as exc:
+            raise ImportError("PyTorch 미설치. pip install torch") from exc
+
+    elif model_name == "ensemble":
+        model = _load_ensemble(version=version)
+
+    else:
+        raise ValueError(f"Unknown model_name: {model_name}")
+
+    return model
 
 
 def _load_ensemble(version: int = MODEL_VERSION) -> "BaseForecaster":
@@ -193,9 +203,8 @@ def _load_csv_cached(path: str) -> pd.DataFrame | None:
             return _data_cache[path]
         if os.path.exists(path):
             _data_cache[path] = pd.read_csv(path)
-        else:
-            _data_cache[path] = None
-        return _data_cache[path]
+            return _data_cache[path]
+        return None  # 미존재 파일은 캐시하지 않음 — 이후 생성 시 자동 감지
 
 
 def build_features(course_name: str, start_date: str, field: str) -> pd.DataFrame:

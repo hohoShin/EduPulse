@@ -641,9 +641,9 @@ def test_evaluate_does_not_overwrite_mape():
     assert "mape" in result2
 
 
-def test_build_features_csv_caching():
+def test_build_features_csv_caching(tmp_path):
     """build_features의 CSV 캐시가 동작하고 clear_model_cache로 초기화되어야 한다."""
-    from edupulse.model.predict import _data_cache, clear_model_cache
+    from edupulse.model.predict import _data_cache, _load_csv_cached, clear_model_cache
 
     clear_model_cache()
     assert len(_data_cache) == 0
@@ -653,8 +653,15 @@ def test_build_features_csv_caching():
     features = build_features("test", "2026-05-01", "coding")
     assert len(features) == 1
 
-    # 캐시에 항목이 생겼는지 확인 (파일 미존재 = None 캐싱)
-    assert len(_data_cache) > 0
+    # 파일 미존재 시 캐시에 저장하지 않음 (이후 파일 생성 시 자동 감지)
+    assert len(_data_cache) == 0
+
+    # 실제 CSV 파일이 있으면 캐시에 저장됨
+    csv_path = str(tmp_path / "test.csv")
+    pd.DataFrame({"a": [1, 2]}).to_csv(csv_path, index=False)
+    result = _load_csv_cached(csv_path)
+    assert result is not None
+    assert csv_path in _data_cache
 
     # clear 후 캐시 비워짐
     clear_model_cache()
