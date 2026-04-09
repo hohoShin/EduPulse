@@ -16,6 +16,7 @@ from edupulse.model.base import (
     _get_package_version,
     save_metadata,
     validate_feature_columns,
+    warn_feature_mismatch,
 )
 
 # Prophet은 선택적 의존성 — 미설치 환경(torch-only)에서도 임포트 안전
@@ -69,6 +70,7 @@ class ProphetForecaster(BaseForecaster):
         self._field_models: dict[str, "Prophet"] = {}
         self._mape: float | None = None
         self._regressors: list[str] = []
+        self._field_regressors: dict[str, list[str]] = {}
 
     # ------------------------------------------------------------------
     # 내부 헬퍼
@@ -123,16 +125,19 @@ class ProphetForecaster(BaseForecaster):
             df: date, enrollment_count (+ 선택적 search_volume, job_count) 컬럼 포함 DataFrame
         """
         self._field_models = {}
+        self._field_regressors = {}
 
         if "field" in df.columns and df["field"].nunique() > 1:
             for field in df["field"].unique():
                 field_df = df[df["field"] == field].sort_values(DATE_COLUMN).reset_index(drop=True)
                 prophet_df = self._to_prophet_df(field_df)
-                self._regressors = validate_feature_columns(REGRESSOR_COLUMNS, prophet_df, "Prophet.train")
-                model = self._build_model(self._regressors)
+                regressors = validate_feature_columns(REGRESSOR_COLUMNS, prophet_df, "Prophet.train")
+                self._field_regressors[field] = regressors
+                model = self._build_model(regressors)
                 model.fit(prophet_df)
                 self._field_models[field] = model
             self._model = next(iter(self._field_models.values()))
+            self._regressors = sorted(set().union(*self._field_regressors.values()))
         else:
             prophet_df = self._to_prophet_df(df)
             self._regressors = validate_feature_columns(REGRESSOR_COLUMNS, prophet_df, "Prophet.train")
@@ -150,9 +155,11 @@ class ProphetForecaster(BaseForecaster):
         """
         # 분야별 모델 선택
         model = self._model
+        regressors = self._regressors
         if self._field_models and "field" in features.columns:
             field = features["field"].iloc[0]
             model = self._field_models.get(field, self._model)
+            regressors = self._field_regressors.get(field, self._regressors)
 
         if model is None:
             raise RuntimeError("모델이 학습되지 않았습니다. train() 또는 load()를 먼저 호출하세요.")
@@ -164,7 +171,7 @@ class ProphetForecaster(BaseForecaster):
             future = pd.DataFrame({"ds": [pd.Timestamp.today().normalize()]})
 
         # 회귀자 추가
-        for reg in self._regressors:
+        for reg in regressors:
             if reg in features.columns:
                 future[reg] = features[reg].fillna(0).values[: len(future)]
             else:
@@ -234,7 +241,8 @@ class ProphetForecaster(BaseForecaster):
                 mapes.append(fold_mape)
 
         avg_mape = float(np.mean(mapes)) if mapes else float("nan")
-        self._mape = avg_mape
+        if self._mape is None:
+            self._mape = avg_mape
         return {"mape": avg_mape, "n_splits": n_splits}
 
     def _evaluate_per_field(self, df: pd.DataFrame, n_splits: int) -> dict:
@@ -270,7 +278,8 @@ class ProphetForecaster(BaseForecaster):
                     all_mapes.append(fold_mape)
 
         avg_mape = float(np.mean(all_mapes)) if all_mapes else float("nan")
-        self._mape = avg_mape
+        if self._mape is None:
+            self._mape = avg_mape
         return {"mape": avg_mape, "n_splits": n_splits}
 
     # ------------------------------------------------------------------
@@ -296,6 +305,7 @@ class ProphetForecaster(BaseForecaster):
                 "field_models": self._field_models,
                 "mape": self._mape,
                 "regressors": self._regressors,
+                "field_regressors": self._field_regressors,
                 "seasonality_mode": self._seasonality_mode,
                 "yearly_seasonality": self._yearly_seasonality,
                 "weekly_seasonality": self._weekly_seasonality,
@@ -346,7 +356,9 @@ class ProphetForecaster(BaseForecaster):
         self._field_models = data.get("field_models", {})
         self._mape = data.get("mape")
         self._regressors = data.get("regressors", [])
+        self._field_regressors = data.get("field_regressors", {})
         self._seasonality_mode = data.get("seasonality_mode", "multiplicative")
         self._yearly_seasonality = data.get("yearly_seasonality", True)
         self._weekly_seasonality = data.get("weekly_seasonality", False)
         self._changepoint_prior_scale = data.get("changepoint_prior_scale", 0.15)
+        warn_feature_mismatch(path, version, [DATE_COLUMN, TARGET_COLUMN] + REGRESSOR_COLUMNS)

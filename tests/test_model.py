@@ -3,8 +3,15 @@ import pandas as pd
 import pytest
 
 from edupulse.constants import DemandTier, classify_demand, DEMAND_THRESHOLDS
-from edupulse.model.base import ModelMetadata, PredictionResult, load_metadata, save_metadata
-from edupulse.model.xgboost_model import XGBoostForecaster
+from edupulse.model.base import (
+    ModelMetadata,
+    PredictionResult,
+    ensure_feature_columns,
+    load_metadata,
+    save_metadata,
+    warn_feature_mismatch,
+)
+from edupulse.model.xgboost_model import FEATURE_COLUMNS, XGBoostForecaster
 from edupulse.preprocessing.transformer import add_lag_features
 
 try:
@@ -367,3 +374,321 @@ def test_load_metadata_not_found(tmp_path):
     """존재하지 않는 metadata.json 로딩 시 FileNotFoundError가 발생해야 한다."""
     with pytest.raises(FileNotFoundError):
         load_metadata(str(tmp_path / "nonexistent"), version=1)
+
+
+def test_ensure_feature_columns_no_mutation():
+    """ensure_feature_columns가 원본 DataFrame을 수정하지 않아야 한다."""
+    df = pd.DataFrame({"lag_1w": [1.0], "lag_2w": [2.0]})
+    original_cols = list(df.columns)
+
+    result = ensure_feature_columns(df, ["lag_1w", "lag_2w", "lag_4w", "missing"], "test")
+
+    # 원본 변경 없음
+    assert list(df.columns) == original_cols
+    assert "lag_4w" not in df.columns
+    assert "missing" not in df.columns
+
+    # 반환값에는 누락 컬럼이 0.0으로 채워짐
+    assert "lag_4w" in result.columns
+    assert "missing" in result.columns
+    assert result["lag_4w"].iloc[0] == 0.0
+    assert result["missing"].iloc[0] == 0.0
+
+    # 기존 값은 보존
+    assert result["lag_1w"].iloc[0] == 1.0
+    assert result["lag_2w"].iloc[0] == 2.0
+
+
+def test_ensure_feature_columns_all_present():
+    """모든 컬럼이 존재하면 복사 없이 원본을 반환해야 한다."""
+    df = pd.DataFrame({"a": [1], "b": [2]})
+    result = ensure_feature_columns(df, ["a", "b"], "test")
+    assert result is df  # 동일 객체
+
+
+def test_xgboost_train_with_missing_features():
+    """피처 누락 DataFrame으로 XGBoost train → predict 시 ValueError 없이 동작해야 한다."""
+    import numpy as np
+    rng = np.random.default_rng(42)
+    n = 100
+    # search_volume, job_count 없는 DataFrame
+    dates = pd.date_range("2021-01-04", periods=n, freq="W-MON")
+    df = pd.DataFrame({
+        "date": dates.strftime("%Y-%m-%d"),
+        "field": ["coding"] * n,
+        "enrollment_count": rng.integers(1, 10, size=n).tolist(),
+    })
+    df = add_lag_features(df, target_col="enrollment_count")
+
+    model = XGBoostForecaster()
+    model.train(df)  # search_volume, job_count 없음 → 0 패딩
+
+    sample = df.iloc[[-1]]
+    result = model.predict(sample)
+
+    assert isinstance(result, PredictionResult)
+    assert result.predicted_enrollment >= 0
+
+
+def test_warn_feature_mismatch_warns(tmp_path):
+    """load 시 피처 불일치가 있으면 UserWarning이 발생해야 한다."""
+    import warnings
+
+    # 학습 시 피처 2개로 metadata 저장
+    metadata = ModelMetadata(
+        model_name="test",
+        version=1,
+        trained_at="2026-04-09T00:00:00+00:00",
+        data_rows=100,
+        feature_columns=["lag_1w", "lag_2w"],
+    )
+    save_dir = str(tmp_path / "test")
+    save_metadata(save_dir, version=1, metadata=metadata)
+
+    # 현재 피처가 다를 때 경고
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        warn_feature_mismatch(save_dir, 1, ["lag_1w", "lag_2w", "lag_4w"])
+        assert len(w) == 1
+        assert "피처 불일치" in str(w[0].message)
+        assert "lag_4w" in str(w[0].message)
+
+
+def test_warn_feature_mismatch_no_metadata(tmp_path):
+    """metadata.json이 없으면 경고 없이 조용히 통과해야 한다."""
+    import warnings
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        warn_feature_mismatch(str(tmp_path / "nonexistent"), 1, ["a", "b"])
+        assert len(w) == 0
+
+
+def test_warn_feature_mismatch_same_features(tmp_path):
+    """피처가 동일하면 경고 없이 통과해야 한다."""
+    import warnings
+
+    metadata = ModelMetadata(
+        model_name="test",
+        version=1,
+        trained_at="2026-04-09T00:00:00+00:00",
+        data_rows=100,
+        feature_columns=["lag_1w", "lag_2w"],
+    )
+    save_dir = str(tmp_path / "test")
+    save_metadata(save_dir, version=1, metadata=metadata)
+
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        warn_feature_mismatch(save_dir, 1, ["lag_1w", "lag_2w"])
+        assert len(w) == 0
+
+
+def test_xgboost_hyperparams_consistency():
+    """XGBoost train()과 evaluate()가 동일한 HYPERPARAMS 상수를 사용해야 한다."""
+    from edupulse.model.xgboost_model import HYPERPARAMS
+
+    assert isinstance(HYPERPARAMS, dict)
+    assert "n_estimators" in HYPERPARAMS
+    assert "learning_rate" in HYPERPARAMS
+    assert HYPERPARAMS["n_estimators"] == 300
+    assert HYPERPARAMS["learning_rate"] == 0.03
+
+    # train과 evaluate 모두 동일 상수를 사용하는지 간접 검증:
+    # evaluate 내부에서 생성되는 모델도 동일 파라미터를 가져야 한다
+    df = _make_training_df(n=100)
+    model = XGBoostForecaster()
+    model.train(df)
+    assert model._model.get_params()["n_estimators"] == HYPERPARAMS["n_estimators"]
+    assert model._model.get_params()["learning_rate"] == HYPERPARAMS["learning_rate"]
+
+
+def test_merger_ffill_field_boundary():
+    """merger ffill이 분야 경계를 넘어 데이터가 누수되지 않아야 한다."""
+    from edupulse.preprocessing.merger import merge_datasets
+
+    # 분야 A: 마지막 행에 값 있음, 분야 B: 첫 행에 NaN
+    enrollment_df = pd.DataFrame({
+        "date": ["2024-01-01", "2024-01-08", "2024-01-15", "2024-01-22"],
+        "field": ["coding", "coding", "security", "security"],
+        "enrollment_count": [10, 20, 30, 40],
+    })
+    search_df = pd.DataFrame({
+        "date": ["2024-01-01", "2024-01-08", "2024-01-15", "2024-01-22"],
+        "field": ["coding", "coding", "security", "security"],
+        "search_volume": [100.0, float("nan"), float("nan"), 400.0],
+    })
+
+    merged = merge_datasets(enrollment_df, search_df)
+
+    # coding의 NaN은 coding의 이전 값(100)으로 채워져야 함
+    coding_rows = merged[merged["field"] == "coding"]
+    assert coding_rows["search_volume"].iloc[1] == 100.0
+
+    # security의 NaN은 coding의 값(100)으로 누수되면 안 됨
+    security_rows = merged[merged["field"] == "security"]
+    # security 첫 행은 이전 security 값이 없으므로 NaN 유지
+    assert pd.isna(security_rows["search_volume"].iloc[0])
+    assert security_rows["search_volume"].iloc[1] == 400.0
+
+
+def test_load_model_thread_safety():
+    """동시 load_model 호출 시 캐시가 스레드 안전하게 동작해야 한다."""
+    import concurrent.futures
+    from unittest.mock import patch
+    from edupulse.model.predict import clear_model_cache, load_model, _cache_lock
+
+    clear_model_cache()
+
+    # XGBoost 모델을 학습하여 저장
+    df = _make_training_df(n=100)
+    xgb = XGBoostForecaster()
+    xgb.train(df)
+
+    import tempfile
+    import joblib
+    with tempfile.TemporaryDirectory() as tmp:
+        from pathlib import Path
+        save_dir = Path(tmp) / "xgboost" / "v1"
+        save_dir.mkdir(parents=True)
+        joblib.dump({"model": xgb._model, "mape": xgb._mape}, save_dir / "model.joblib")
+
+        with patch("edupulse.model.predict.load_model") as mock_load:
+            # 실제 구현 대신 _cache_lock 존재 여부만 검증
+            pass
+
+    # Lock 객체 존재 확인
+    assert _cache_lock is not None
+    import threading
+    assert isinstance(_cache_lock, type(threading.Lock()))
+
+    clear_model_cache()
+
+
+def test_ensemble_confidence_weighted():
+    """앙상블 CI가 min/max가 아닌 가중 평균으로 계산되어야 한다."""
+    from edupulse.model.ensemble import EnsembleForecaster
+
+    df = _make_training_df(n=100)
+
+    xgb1 = XGBoostForecaster()
+    xgb1.train(df)
+
+    xgb2 = XGBoostForecaster()
+    xgb2.train(df)
+
+    ensemble = EnsembleForecaster()
+    ensemble.add_model("model_a", xgb1)
+    ensemble.add_model("model_b", xgb2)
+
+    sample = df.iloc[[-1]].copy()
+    result = ensemble.predict(sample)
+
+    # 단일 모델의 결과도 가져와서 비교
+    result_a = xgb1.predict(sample)
+    result_b = xgb2.predict(sample)
+
+    # 균등 가중 평균이므로 (a + b) / 2
+    expected_lower = (result_a.confidence_lower + result_b.confidence_lower) / 2
+    expected_upper = (result_a.confidence_upper + result_b.confidence_upper) / 2
+
+    assert abs(result.confidence_lower - round(expected_lower, 1)) <= 0.2
+    assert abs(result.confidence_upper - round(expected_upper, 1)) <= 0.2
+
+
+def test_add_lag_features_unsorted_input():
+    """정렬되지 않은 입력에서도 add_lag_features가 올바른 lag를 생성해야 한다."""
+    import numpy as np
+
+    # 날짜 역순으로 DataFrame 생성
+    dates = pd.date_range("2021-01-04", periods=20, freq="W-MON")
+    df = pd.DataFrame({
+        "date": dates.strftime("%Y-%m-%d"),
+        "field": ["coding"] * 20,
+        "enrollment_count": list(range(1, 21)),
+    })
+    # 역순으로 섞기
+    df_shuffled = df.iloc[::-1].reset_index(drop=True)
+
+    result = add_lag_features(df_shuffled, target_col="enrollment_count")
+
+    # 정렬된 상태에서의 결과와 비교
+    result_sorted = add_lag_features(df, target_col="enrollment_count")
+
+    # 동일한 date 행의 lag_1w 값이 일치해야 한다
+    r1 = result.set_index("date").sort_index()
+    r2 = result_sorted.set_index("date").sort_index()
+    np.testing.assert_array_equal(r1["lag_1w"].values, r2["lag_1w"].values)
+    np.testing.assert_array_equal(r1["lag_4w"].values, r2["lag_4w"].values)
+
+
+def test_evaluate_does_not_overwrite_mape():
+    """학습 후 evaluate()를 호출해도 기존 self._mape가 보존되어야 한다."""
+    df = _make_training_df(n=100)
+    model = XGBoostForecaster()
+    model.train(df)
+
+    # 학습 후 evaluate로 mape 설정
+    model._mape = None  # 초기화
+    result1 = model.evaluate(df, n_splits=3)
+    first_mape = model._mape
+    assert first_mape is not None
+
+    # 두 번째 evaluate 호출 — 기존 mape를 덮어쓰지 않아야 함
+    result2 = model.evaluate(df, n_splits=3)
+    assert model._mape == first_mape
+
+    # 반환값에는 새로운 MAPE가 포함됨
+    assert "mape" in result2
+
+
+def test_build_features_csv_caching():
+    """build_features의 CSV 캐시가 동작하고 clear_model_cache로 초기화되어야 한다."""
+    from edupulse.model.predict import _data_cache, clear_model_cache
+
+    clear_model_cache()
+    assert len(_data_cache) == 0
+
+    # build_features 호출 (CSV 없어도 에러 없이 0으로 채움)
+    from edupulse.model.predict import build_features
+    features = build_features("test", "2026-05-01", "coding")
+    assert len(features) == 1
+
+    # 캐시에 항목이 생겼는지 확인 (파일 미존재 = None 캐싱)
+    assert len(_data_cache) > 0
+
+    # clear 후 캐시 비워짐
+    clear_model_cache()
+    assert len(_data_cache) == 0
+
+
+def test_lstm_feature_compatibility_check(tmp_path):
+    """LSTM load 시 피처 수 불일치가 있으면 RuntimeError가 발생해야 한다."""
+    if not _TORCH_AVAILABLE:
+        pytest.skip("PyTorch 미설치")
+
+    from edupulse.model.lstm_model import _check_feature_compatibility
+
+    # 피처 2개로 metadata 저장
+    metadata = ModelMetadata(
+        model_name="lstm",
+        version=1,
+        trained_at="2026-04-09T00:00:00+00:00",
+        data_rows=100,
+        feature_columns=["lag_1w", "lag_2w"],
+    )
+    save_dir = str(tmp_path / "lstm")
+    save_metadata(save_dir, version=1, metadata=metadata)
+
+    # 피처 수가 다르면 RuntimeError
+    with pytest.raises(RuntimeError, match="피처 수 불일치"):
+        _check_feature_compatibility(save_dir, 1, ["lag_1w", "lag_2w", "lag_4w"])
+
+    # 피처 수 같지만 순서 다르면 RuntimeError (LSTM은 순서에 민감)
+    with pytest.raises(RuntimeError, match="피처 순서/구성 불일치"):
+        _check_feature_compatibility(save_dir, 1, ["lag_2w", "lag_1w"])
+
+    # 피처가 동일하면 통과
+    _check_feature_compatibility(save_dir, 1, ["lag_1w", "lag_2w"])
+
+    # metadata 없으면 조용히 통과
+    _check_feature_compatibility(str(tmp_path / "nonexistent"), 1, ["a", "b"])

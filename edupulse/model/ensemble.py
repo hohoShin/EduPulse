@@ -1,10 +1,14 @@
 """앙상블 수요 예측 모델 — 여러 모델의 가중 평균으로 최종 예측."""
 from __future__ import annotations
 
+import logging
+
 import numpy as np
 import pandas as pd
 
 from edupulse.constants import classify_demand
+
+logger = logging.getLogger(__name__)
 from edupulse.model.base import (
     BaseForecaster,
     ModelMetadata,
@@ -115,7 +119,7 @@ class EnsembleForecaster(BaseForecaster):
             try:
                 model.train(df)
             except Exception as exc:
-                print(f"[ensemble] {name} 학습 실패 (건너뜀): {exc}")
+                logger.warning("앙상블: %s 학습 실패 (건너뜀) — %s", name, exc)
 
     def _predict(self, features: pd.DataFrame) -> PredictionResult:
         """각 모델의 예측을 수집하고 가중 평균하여 앙상블 결과 반환.
@@ -148,7 +152,7 @@ class EnsembleForecaster(BaseForecaster):
                     mapes.append(result.mape)
                 used_names.append(name)
             except Exception as exc:
-                print(f"[ensemble] {name} 예측 실패 (건너뜀): {exc}")
+                logger.warning("앙상블: %s 예측 실패 (건너뜀) — %s", name, exc)
 
         if not enrollments:
             raise RuntimeError("앙상블 내 모든 모델 예측에 실패했습니다.")
@@ -159,9 +163,9 @@ class EnsembleForecaster(BaseForecaster):
         predicted_enrollment = max(0, round(avg_enrollment))
         demand_tier = classify_demand(predicted_enrollment)
 
-        # confidence: lower = min, upper = max (보수적 구간)
-        confidence_lower = max(0.0, round(float(min(lowers)), 1))
-        confidence_upper = round(float(max(uppers)), 1)
+        # confidence: 가중 평균 (모델 수 증가에 따른 구간 과대추정 방지)
+        confidence_lower = max(0.0, round(float(np.average(lowers, weights=weights)), 1))
+        confidence_upper = round(float(np.average(uppers, weights=weights)), 1)
 
         avg_mape = float(np.mean(mapes)) if mapes else None
 
@@ -198,7 +202,7 @@ class EnsembleForecaster(BaseForecaster):
                 if not np.isnan(mape_val):
                     all_mapes.append(mape_val)
             except Exception as exc:
-                print(f"[ensemble] {name} 평가 실패 (건너뜀): {exc}")
+                logger.warning("앙상블: %s 평가 실패 (건너뜀) — %s", name, exc)
                 model_mapes[name] = float("nan")
 
         avg_mape = float(np.mean(all_mapes)) if all_mapes else float("nan")

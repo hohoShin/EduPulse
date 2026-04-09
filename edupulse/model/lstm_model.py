@@ -22,8 +22,10 @@ from edupulse.model.base import (
     PredictionResult,
     _extract_data_info,
     _get_package_version,
+    ensure_feature_columns,
+    load_metadata,
     save_metadata,
-    validate_feature_columns,
+    warn_feature_mismatch,
 )
 from edupulse.model.utils import get_device
 from edupulse.model.xgboost_model import FEATURE_COLUMNS, TARGET_COLUMN
@@ -51,6 +53,40 @@ def _get_torch():
             "MacBook에서 'pip install torch'를 실행하세요."
         )
     return _torch
+
+
+def _check_feature_compatibility(path: str, version: int, current_features: list[str]) -> None:
+    """metadata.json의 피처 수와 현재 피처 수를 비교. 불일치 시 RuntimeError.
+
+    load_state_dict() 전에 호출하여 아키텍처 불일치 크래시를 방지한다.
+
+    Args:
+        path: 모델 저장 루트 경로
+        version: 버전 번호
+        current_features: 현재 코드의 피처 목록
+    """
+    try:
+        meta = load_metadata(path, version)
+    except FileNotFoundError:
+        return  # metadata 없으면 검증 불가 — 경고만 (기존 동작)
+
+    saved = meta.feature_columns
+    if not saved:
+        return
+
+    if len(saved) != len(current_features):
+        raise RuntimeError(
+            f"LSTM 피처 수 불일치: 학습 시 {len(saved)}개 → 현재 {len(current_features)}개. "
+            f"저장된 가중치와 아키텍처가 호환되지 않습니다. "
+            f"학습: {saved}, 현재: {current_features}"
+        )
+
+    # LSTM은 피처 순서에 민감 — 순서 변경도 잘못된 예측을 유발한다
+    if list(saved) != list(current_features):
+        raise RuntimeError(
+            f"LSTM 피처 순서/구성 불일치: "
+            f"학습: {saved}, 현재: {current_features}"
+        )
 
 
 class EnrollmentLSTM:
@@ -130,11 +166,7 @@ def _build_sequences_per_field(
         xs: (n_total_windows, sequence_length, n_features)
         ys: (n_total_windows,)
     """
-    validate_feature_columns(feature_cols, df, "LSTM.sequences")
-    # 누락 컬럼 0 패딩으로 scaler 차원(= INPUT_SIZE) 보장
-    for col in feature_cols:
-        if col not in df.columns:
-            df[col] = 0.0
+    df = ensure_feature_columns(df, feature_cols, "LSTM.sequences")
     X_raw = df[feature_cols].fillna(0).values.astype(np.float32)
     y_raw = df[target_col].values.astype(np.float32).reshape(-1, 1)
 
@@ -324,10 +356,7 @@ class LSTMForecaster(BaseForecaster):
         self, df: pd.DataFrame
     ) -> tuple[np.ndarray, np.ndarray]:
         """DataFrame → 정규화된 (X, y) numpy 배열 반환."""
-        validate_feature_columns(FEATURE_COLUMNS, df, "LSTM.prepare")
-        for col in FEATURE_COLUMNS:
-            if col not in df.columns:
-                df[col] = 0.0
+        df = ensure_feature_columns(df, FEATURE_COLUMNS, "LSTM.prepare")
         X_raw = df[FEATURE_COLUMNS].fillna(0).values.astype(np.float32)
         y_raw = df[TARGET_COLUMN].values.astype(np.float32).reshape(-1, 1)
         return X_raw, y_raw
@@ -410,11 +439,7 @@ class LSTMForecaster(BaseForecaster):
         torch = _get_torch()
         device = get_device()
 
-        validate_feature_columns(FEATURE_COLUMNS, features, "LSTM.predict")
-        # 누락 컬럼 0 패딩으로 scaler 차원 보장
-        for col in FEATURE_COLUMNS:
-            if col not in features.columns:
-                features[col] = 0.0
+        features = ensure_feature_columns(features, FEATURE_COLUMNS, "LSTM.predict")
         X_raw = features[FEATURE_COLUMNS].fillna(0).values.astype(np.float32)
         X_scaled = self._scaler_X.transform(X_raw)
 
@@ -502,27 +527,26 @@ class LSTMForecaster(BaseForecaster):
             if len(xs_tr) == 0:
                 continue
 
-            xs_tr, ys_tr = _augment_sequences(xs_tr, ys_tr)
+            # inner train/val split (시간 순서 유지)
+            inner_val_size = max(1, int(len(xs_tr) * VAL_RATIO))
+            xs_inner_tr, xs_inner_val = xs_tr[:-inner_val_size], xs_tr[-inner_val_size:]
+            ys_inner_tr, ys_inner_val = ys_tr[:-inner_val_size], ys_tr[-inner_val_size:]
+
+            # 증강: inner 학습 데이터에만 적용
+            xs_inner_tr, ys_inner_tr = _augment_sequences(xs_inner_tr, ys_inner_tr)
 
             device = get_device()
-            X_t = torch.tensor(xs_tr).to(device)
-            y_t = torch.tensor(ys_tr).unsqueeze(1).to(device)
+            X_t = torch.tensor(xs_inner_tr).to(device)
+            y_t = torch.tensor(ys_inner_tr).unsqueeze(1).to(device)
+            X_v = torch.tensor(xs_inner_val).to(device)
+            y_v = torch.tensor(ys_inner_val).unsqueeze(1).to(device)
 
             fold_model = self._make_model().to(device)
-            opt = torch.optim.Adam(fold_model.parameters(), lr=1e-3)
-            crit = torch.nn.MSELoss()
-
-            fold_model.train()
-            dataset = torch.utils.data.TensorDataset(X_t, y_t)
-            loader = torch.utils.data.DataLoader(
-                dataset, batch_size=BATCH_SIZE, shuffle=False,
+            fold_model = _train_loop(
+                fold_model, X_t, y_t, X_v, y_v,
+                epochs=50, learning_rate=1e-3,
+                patience=PATIENCE, device=device,
             )
-            for _ in range(50):
-                for Xb, yb in loader:
-                    opt.zero_grad()
-                    loss = crit(fold_model(Xb), yb)
-                    loss.backward()
-                    opt.step()
 
             fold_model.eval()
             preds_scaled, actuals = [], []
@@ -558,7 +582,8 @@ class LSTMForecaster(BaseForecaster):
         X_raw, y_raw = self._prepare_arrays(df)
         mapes = self._evaluate_fold(X_raw, y_raw, n_splits)
         avg_mape = float(np.mean(mapes)) if mapes else float("nan")
-        self._mape = avg_mape
+        if self._mape is None:
+            self._mape = avg_mape
         return {"mape": avg_mape, "n_splits": n_splits}
 
     def _evaluate_per_field(self, df: pd.DataFrame, n_splits: int) -> dict:
@@ -569,7 +594,8 @@ class LSTMForecaster(BaseForecaster):
             X_raw, y_raw = self._prepare_arrays(field_df)
             all_mapes.extend(self._evaluate_fold(X_raw, y_raw, n_splits))
         avg_mape = float(np.mean(all_mapes)) if all_mapes else float("nan")
-        self._mape = avg_mape
+        if self._mape is None:
+            self._mape = avg_mape
         return {"mape": avg_mape, "n_splits": n_splits}
 
     # ------------------------------------------------------------------
@@ -658,6 +684,10 @@ class LSTMForecaster(BaseForecaster):
             raise FileNotFoundError(f"스케일러 파일을 찾을 수 없습니다: {scalers_path}")
 
         device = get_device()
+
+        # 피처 불일치를 load_state_dict 전에 검사하여 크래시 대신 명확한 에러 제공
+        _check_feature_compatibility(path, version, FEATURE_COLUMNS)
+
         self._model = self._make_model().to(device)
         self._model.load_state_dict(
             torch.load(model_pt, map_location=device)

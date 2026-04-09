@@ -15,8 +15,9 @@ from edupulse.model.base import (
     PredictionResult,
     _extract_data_info,
     _get_package_version,
+    ensure_feature_columns,
     save_metadata,
-    validate_feature_columns,
+    warn_feature_mismatch,
 )
 
 FEATURE_COLUMNS = [
@@ -33,6 +34,16 @@ FEATURE_COLUMNS = [
 ]
 TARGET_COLUMN = "enrollment_count"
 
+HYPERPARAMS = {
+    "n_estimators": 300,
+    "max_depth": 4,
+    "learning_rate": 0.03,
+    "subsample": 0.8,
+    "colsample_bytree": 0.8,
+    "random_state": 42,
+    "n_jobs": -1,
+}
+
 
 class XGBoostForecaster(BaseForecaster):
     """XGBoost 기반 수강 수요 예측 모델."""
@@ -48,19 +59,11 @@ class XGBoostForecaster(BaseForecaster):
         Args:
             df: feature_columns + target_column을 포함한 DataFrame
         """
-        available = validate_feature_columns(FEATURE_COLUMNS, df, "XGBoost.train")
-        X = df[available].fillna(0)
+        df = ensure_feature_columns(df, FEATURE_COLUMNS, "XGBoost.train")
+        X = df[FEATURE_COLUMNS].fillna(0)
         y = df[TARGET_COLUMN]
 
-        self._model = XGBRegressor(
-            n_estimators=300,
-            max_depth=4,
-            learning_rate=0.03,
-            subsample=0.8,
-            colsample_bytree=0.8,
-            random_state=42,
-            n_jobs=-1,
-        )
+        self._model = XGBRegressor(**HYPERPARAMS)
         self._model.fit(X, y)
 
     def _predict(self, features: pd.DataFrame) -> PredictionResult:
@@ -72,8 +75,8 @@ class XGBoostForecaster(BaseForecaster):
         if self._model is None:
             raise RuntimeError("Model not trained or loaded. Call train() or load() first.")
 
-        available = validate_feature_columns(FEATURE_COLUMNS, features, "XGBoost.predict")
-        X = features[available].fillna(0)
+        features = ensure_feature_columns(features, FEATURE_COLUMNS, "XGBoost.predict")
+        X = features[FEATURE_COLUMNS].fillna(0)
         raw_pred = float(self._model.predict(X)[0])
         predicted_enrollment = max(0, round(raw_pred))
 
@@ -103,8 +106,8 @@ class XGBoostForecaster(BaseForecaster):
         Returns:
             {'mape': float, 'n_splits': int}
         """
-        available = validate_feature_columns(FEATURE_COLUMNS, df, "XGBoost.evaluate")
-        X = df[available].fillna(0).values
+        df = ensure_feature_columns(df, FEATURE_COLUMNS, "XGBoost.evaluate")
+        X = df[FEATURE_COLUMNS].fillna(0).values
         y = df[TARGET_COLUMN].values
 
         tscv = TimeSeriesSplit(n_splits=n_splits)
@@ -114,15 +117,7 @@ class XGBoostForecaster(BaseForecaster):
             X_train, X_val = X[train_idx], X[val_idx]
             y_train, y_val = y[train_idx], y[val_idx]
 
-            model = XGBRegressor(
-                n_estimators=200,
-                max_depth=4,
-                learning_rate=0.05,
-                subsample=0.8,
-                colsample_bytree=0.8,
-                random_state=42,
-                n_jobs=-1,
-            )
+            model = XGBRegressor(**HYPERPARAMS)
             model.fit(X_train, y_train)
             preds = model.predict(X_val)
 
@@ -133,7 +128,9 @@ class XGBoostForecaster(BaseForecaster):
                 mapes.append(fold_mape)
 
         avg_mape = float(np.mean(mapes)) if mapes else float("nan")
-        self._mape = avg_mape
+        # 학습 시 설정된 _mape가 없을 때만 갱신 (confidence interval 안정성 보장)
+        if self._mape is None:
+            self._mape = avg_mape
         return {"mape": avg_mape, "n_splits": n_splits}
 
     def save(self, path: str, version: int, df: pd.DataFrame | None = None) -> None:
@@ -162,14 +159,7 @@ class XGBoostForecaster(BaseForecaster):
                 data_rows=data_info["data_rows"],
                 data_date_range=data_info["data_date_range"],
                 feature_columns=[c for c in FEATURE_COLUMNS if c in df.columns],
-                hyperparameters={
-                    "n_estimators": 300,
-                    "max_depth": 4,
-                    "learning_rate": 0.03,
-                    "subsample": 0.8,
-                    "colsample_bytree": 0.8,
-                    "random_state": 42,
-                },
+                hyperparameters=HYPERPARAMS,
                 mape=self._mape,
                 fields=data_info["fields"],
                 package_versions={
@@ -192,3 +182,4 @@ class XGBoostForecaster(BaseForecaster):
         data = joblib.load(model_path)
         self._model = data["model"]
         self._mape = data.get("mape")
+        warn_feature_mismatch(path, version, FEATURE_COLUMNS)

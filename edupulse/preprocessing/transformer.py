@@ -32,6 +32,12 @@ def add_lag_features(
     if date_col:
         df[date_col] = pd.to_datetime(df[date_col])
 
+    # 날짜순 정렬: shift()가 행 위치 기반이므로 정렬이 선행되어야 lag가 정확하다.
+    if date_col and "field" in df.columns:
+        df = df.sort_values(["field", date_col]).reset_index(drop=True)
+    elif date_col:
+        df = df.sort_values(date_col).reset_index(drop=True)
+
     # lag features (분야별 groupby로 경계 넘김 방지)
     if target_col in df.columns:
         if "field" in df.columns:

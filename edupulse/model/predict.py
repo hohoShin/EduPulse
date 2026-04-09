@@ -8,6 +8,7 @@ Usage:
 import logging
 import math
 import os
+import threading
 
 import numpy as np
 import pandas as pd
@@ -26,17 +27,25 @@ _ENROLLMENT_PATH = "edupulse/data/raw/internal/enrollment_history.csv"
 _SEARCH_TRENDS_PATH = "edupulse/data/raw/external/search_trends.csv"
 _JOB_POSTINGS_PATH = "edupulse/data/raw/external/job_postings.csv"
 
-# 모듈 레벨 모델 캐시
+# 모듈 레벨 모델 캐시 및 스레드 잠금
 _model_cache: dict[str, BaseForecaster] = {}
+_cache_lock = threading.Lock()
+
+# CSV 데이터 캐시 — build_features()의 반복 I/O 방지
+_data_cache: dict[str, pd.DataFrame] = {}
+_data_cache_lock = threading.Lock()
 
 
 def clear_model_cache() -> None:
-    """모델 캐시 초기화. 테스트 또는 리로딩 시 사용."""
-    _model_cache.clear()
+    """모델 캐시 및 데이터 캐시 초기화. 테스트 또는 리로딩 시 사용."""
+    with _cache_lock:
+        _model_cache.clear()
+    with _data_cache_lock:
+        _data_cache.clear()
 
 
 def load_model(model_name: str, version: int = MODEL_VERSION) -> BaseForecaster:
-    """모델 캐시에서 반환하거나 새로 로딩.
+    """모델 캐시에서 반환하거나 새로 로딩 (스레드 안전).
 
     Args:
         model_name: 모델 이름 ('xgboost', 'prophet', 'lstm', 'ensemble')
@@ -46,38 +55,42 @@ def load_model(model_name: str, version: int = MODEL_VERSION) -> BaseForecaster:
         로딩된 BaseForecaster 인스턴스
     """
     key = f"{model_name}_v{version}"
-    if key not in _model_cache:
-        if model_name == "xgboost":
-            from edupulse.model.xgboost_model import XGBoostForecaster
+    if key in _model_cache:  # 빠른 경로 (잠금 없는 읽기)
+        return _model_cache[key]
 
-            model: BaseForecaster = XGBoostForecaster()
-            model.load(f"edupulse/model/saved/xgboost", version=version)
+    with _cache_lock:
+        if key not in _model_cache:  # 잠금 내 이중 확인
+            if model_name == "xgboost":
+                from edupulse.model.xgboost_model import XGBoostForecaster
 
-        elif model_name == "prophet":
-            try:
-                from edupulse.model.prophet_model import ProphetForecaster
+                model: BaseForecaster = XGBoostForecaster()
+                model.load(f"edupulse/model/saved/xgboost", version=version)
 
-                model = ProphetForecaster()
-                model.load(f"edupulse/model/saved/prophet", version=version)
-            except ImportError as exc:
-                raise ImportError("Prophet 미설치. pip install prophet") from exc
+            elif model_name == "prophet":
+                try:
+                    from edupulse.model.prophet_model import ProphetForecaster
 
-        elif model_name == "lstm":
-            try:
-                from edupulse.model.lstm_model import LSTMForecaster
+                    model = ProphetForecaster()
+                    model.load(f"edupulse/model/saved/prophet", version=version)
+                except ImportError as exc:
+                    raise ImportError("Prophet 미설치. pip install prophet") from exc
 
-                model = LSTMForecaster()
-                model.load(f"edupulse/model/saved/lstm", version=version)
-            except ImportError as exc:
-                raise ImportError("PyTorch 미설치. pip install torch") from exc
+            elif model_name == "lstm":
+                try:
+                    from edupulse.model.lstm_model import LSTMForecaster
 
-        elif model_name == "ensemble":
-            model = _load_ensemble(version=version)
+                    model = LSTMForecaster()
+                    model.load(f"edupulse/model/saved/lstm", version=version)
+                except ImportError as exc:
+                    raise ImportError("PyTorch 미설치. pip install torch") from exc
 
-        else:
-            raise ValueError(f"Unknown model_name: {model_name}")
+            elif model_name == "ensemble":
+                model = _load_ensemble(version=version)
 
-        _model_cache[key] = model
+            else:
+                raise ValueError(f"Unknown model_name: {model_name}")
+
+            _model_cache[key] = model
 
     return _model_cache[key]
 
@@ -104,8 +117,8 @@ def _load_ensemble(version: int = MODEL_VERSION) -> "BaseForecaster":
         xgb = XGBoostForecaster()
         xgb.load("edupulse/model/saved/xgboost", version=version)
         ensemble.add_model("xgboost", xgb)
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("앙상블: XGBoost 로딩 실패 — %s", exc)
 
     # Prophet (선택적)
     try:
@@ -114,8 +127,8 @@ def _load_ensemble(version: int = MODEL_VERSION) -> "BaseForecaster":
         prophet = ProphetForecaster()
         prophet.load("edupulse/model/saved/prophet", version=version)
         ensemble.add_model("prophet", prophet)
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("앙상블: Prophet 로딩 실패 — %s", exc)
 
     # LSTM (선택적)
     try:
@@ -124,13 +137,32 @@ def _load_ensemble(version: int = MODEL_VERSION) -> "BaseForecaster":
         lstm = LSTMForecaster()
         lstm.load("edupulse/model/saved/lstm", version=version)
         ensemble.add_model("lstm", lstm)
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("앙상블: LSTM 로딩 실패 — %s", exc)
 
     if ensemble.model_count == 0:
         raise RuntimeError("앙상블 로딩 실패: 사용 가능한 모델이 없습니다.")
 
     return ensemble
+
+
+def _load_csv_cached(path: str) -> pd.DataFrame | None:
+    """CSV를 캐시에서 반환하거나 디스크에서 로딩 (스레드 안전).
+
+    Args:
+        path: CSV 파일 경로
+
+    Returns:
+        DataFrame 또는 파일 미존재 시 None
+    """
+    with _data_cache_lock:
+        if path in _data_cache:
+            return _data_cache[path]
+        if os.path.exists(path):
+            _data_cache[path] = pd.read_csv(path)
+        else:
+            _data_cache[path] = None
+        return _data_cache[path]
 
 
 def build_features(course_name: str, start_date: str, field: str) -> pd.DataFrame:
@@ -165,41 +197,51 @@ def build_features(course_name: str, start_date: str, field: str) -> pd.DataFram
     field_encoded = float(FIELD_ENCODING.get(field, 0))
 
     # --- 3) lag features + rolling_mean (enrollment_history.csv) ---
+    # 학습 파이프라인(merger.py)과 동일하게 연속 주간 시계열(asfreq)로 정렬 후
+    # 인덱스 기반 shift(N) = 정확히 N주 전 보장 (결측 주 있어도 일치)
+    target_date_aligned = pd.Timestamp(start_date).to_period("W").start_time
     lag_1w, lag_2w, lag_4w, lag_8w, rolling_mean_4w = 0.0, 0.0, 0.0, 0.0, 0.0
-    if os.path.exists(_ENROLLMENT_PATH):
+    enroll_raw = _load_csv_cached(_ENROLLMENT_PATH)
+    if enroll_raw is not None:
         try:
-            enroll_df = pd.read_csv(_ENROLLMENT_PATH)
-            enroll_df["date"] = pd.to_datetime(enroll_df["date"])
-            field_enroll = (
+            enroll_df = enroll_raw.copy()
+            enroll_df["date"] = pd.to_datetime(enroll_df["date"]).dt.to_period("W").dt.start_time
+            # 분야별 주간 집계 후 연속 시계열로 변환 (누락 주 = ffill)
+            field_series = (
                 enroll_df[enroll_df["field"] == field]
-                .sort_values("date")
+                .groupby("date")["enrollment_count"]
+                .sum()
+                .asfreq("W-MON")
+                .ffill()
             )
-            # target_date 이전 데이터만 사용
-            prior = field_enroll[field_enroll["date"] < target_date]
-            if len(prior) >= 1:
-                lag_1w = float(prior.iloc[-1]["enrollment_count"])
-            if len(prior) >= 2:
-                lag_2w = float(prior.iloc[-2]["enrollment_count"])
-            if len(prior) >= 4:
-                lag_4w = float(prior.iloc[-4]["enrollment_count"])
-            if len(prior) >= 8:
-                lag_8w = float(prior.iloc[-8]["enrollment_count"])
+            # target_date 이전 인덱스에서 lag 계산
+            prior_idx = field_series.index[field_series.index < target_date_aligned]
+            if len(prior_idx) >= 1:
+                idx = len(prior_idx)
+                lag_1w = float(field_series.iloc[idx - 1])
+            if len(prior_idx) >= 2:
+                lag_2w = float(field_series.iloc[idx - 2])
+            if len(prior_idx) >= 4:
+                lag_4w = float(field_series.iloc[idx - 4])
+            if len(prior_idx) >= 8:
+                lag_8w = float(field_series.iloc[idx - 8])
             # rolling_mean_4w: 최근 4주 평균
-            if len(prior) >= 4:
-                rolling_mean_4w = float(prior.iloc[-4:]["enrollment_count"].mean())
-            elif len(prior) >= 1:
-                rolling_mean_4w = float(prior.tail(4)["enrollment_count"].mean())
+            if len(prior_idx) >= 4:
+                rolling_mean_4w = float(field_series.iloc[idx - 4:idx].mean())
+            elif len(prior_idx) >= 1:
+                rolling_mean_4w = float(field_series.iloc[:idx].mean())
         except Exception as e:
             logger.warning("등록 이력 로딩 실패, lag=0 사용: %s", e)
 
     # --- 4) search_volume (search_trends.csv) ---
     search_volume = 0.0
-    if os.path.exists(_SEARCH_TRENDS_PATH):
+    search_raw = _load_csv_cached(_SEARCH_TRENDS_PATH)
+    if search_raw is not None:
         try:
-            search_df = pd.read_csv(_SEARCH_TRENDS_PATH)
-            search_df["date"] = pd.to_datetime(search_df["date"])
+            search_df = search_raw.copy()
+            search_df["date"] = pd.to_datetime(search_df["date"]).dt.to_period("W").dt.start_time
             field_search = search_df[search_df["field"] == field].sort_values("date")
-            prior_search = field_search[field_search["date"] < target_date]
+            prior_search = field_search[field_search["date"] < target_date_aligned]
             if len(prior_search) >= 1:
                 search_volume = float(prior_search.iloc[-1]["search_volume"])
         except Exception as e:
@@ -207,12 +249,13 @@ def build_features(course_name: str, start_date: str, field: str) -> pd.DataFram
 
     # --- 5) job_count (job_postings.csv) ---
     job_count = 0.0
-    if os.path.exists(_JOB_POSTINGS_PATH):
+    job_raw = _load_csv_cached(_JOB_POSTINGS_PATH)
+    if job_raw is not None:
         try:
-            job_df = pd.read_csv(_JOB_POSTINGS_PATH)
-            job_df["date"] = pd.to_datetime(job_df["date"])
+            job_df = job_raw.copy()
+            job_df["date"] = pd.to_datetime(job_df["date"]).dt.to_period("W").dt.start_time
             field_jobs = job_df[job_df["field"] == field].sort_values("date")
-            prior_jobs = field_jobs[field_jobs["date"] < target_date]
+            prior_jobs = field_jobs[field_jobs["date"] < target_date_aligned]
             if len(prior_jobs) >= 1:
                 job_count = float(prior_jobs.iloc[-1]["job_count"])
         except Exception as e:
