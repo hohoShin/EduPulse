@@ -51,10 +51,15 @@ frontend/.env.local
 # Jupyter
 .ipynb_checkpoints/
 
+# Test cache
+.pytest_cache/
+
 # OS
 .DS_Store
 Thumbs.db
 
-# omc / claude
+# omc / claude / local agent state
 .omc/
 .claude/
+.sisyphus/
+.playwright-mcp/
