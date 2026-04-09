@@ -96,7 +96,7 @@ class XGBoostForecaster(BaseForecaster):
         )
 
     def evaluate(self, df: pd.DataFrame, n_splits: int = 5) -> dict:
-        """TimeSeriesSplit K-Fold 교차검증. MAPE 반환.
+        """TimeSeriesSplit K-Fold 교차검증. 분야별 분리 평가 후 평균 MAPE 반환.
 
         Args:
             df: feature_columns + target_column을 포함한 DataFrame
@@ -106,11 +106,40 @@ class XGBoostForecaster(BaseForecaster):
             {'mape': float, 'n_splits': int}
         """
         df = ensure_feature_columns(df, FEATURE_COLUMNS, "XGBoost.evaluate")
+
+        if "field" in df.columns and df["field"].nunique() > 1:
+            return self._evaluate_per_field(df, n_splits)
+        return self._evaluate_single(df, n_splits)
+
+    def _evaluate_single(self, df: pd.DataFrame, n_splits: int) -> dict:
+        """단일 시계열 평가."""
         X = df[FEATURE_COLUMNS].fillna(0).values
         y = df[TARGET_COLUMN].values
+        mapes = self._evaluate_fold(X, y, n_splits)
+        avg_mape = float(np.mean(mapes)) if mapes else float("nan")
+        if self._mape is None:
+            self._mape = avg_mape
+        return {"mape": avg_mape, "n_splits": n_splits}
 
+    def _evaluate_per_field(self, df: pd.DataFrame, n_splits: int) -> dict:
+        """분야별 분리 평가 후 평균 MAPE 반환."""
+        all_mapes: list[float] = []
+        for field in df["field"].unique():
+            field_df = df[df["field"] == field].sort_values("date").reset_index(drop=True)
+            X = field_df[FEATURE_COLUMNS].fillna(0).values
+            y = field_df[TARGET_COLUMN].values
+            all_mapes.extend(self._evaluate_fold(X, y, n_splits))
+        avg_mape = float(np.mean(all_mapes)) if all_mapes else float("nan")
+        if self._mape is None:
+            self._mape = avg_mape
+        return {"mape": avg_mape, "n_splits": n_splits}
+
+    def _evaluate_fold(
+        self, X: np.ndarray, y: np.ndarray, n_splits: int,
+    ) -> list[float]:
+        """K-Fold 평가 공통 로직."""
         tscv = TimeSeriesSplit(n_splits=n_splits)
-        mapes = []
+        mapes: list[float] = []
 
         for train_idx, val_idx in tscv.split(X):
             X_train, X_val = X[train_idx], X[val_idx]
@@ -125,11 +154,7 @@ class XGBoostForecaster(BaseForecaster):
                 fold_mape = float(np.mean(np.abs((y_val[nonzero] - preds[nonzero]) / y_val[nonzero])) * 100)
                 mapes.append(fold_mape)
 
-        avg_mape = float(np.mean(mapes)) if mapes else float("nan")
-        # 학습 시 설정된 _mape가 없을 때만 갱신 (confidence interval 안정성 보장)
-        if self._mape is None:
-            self._mape = avg_mape
-        return {"mape": avg_mape, "n_splits": n_splits}
+        return mapes
 
     def save(self, path: str, version: int, df: pd.DataFrame | None = None) -> None:
         """모델을 joblib으로 직렬화 저장.

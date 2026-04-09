@@ -1,4 +1,5 @@
 """Prophet 수요 예측 모델 래퍼. 분야별 개별 모델 학습."""
+import logging
 import os
 from pathlib import Path
 
@@ -6,6 +7,8 @@ import joblib
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import TimeSeriesSplit
+
+logger = logging.getLogger(__name__)
 
 from edupulse.constants import classify_demand
 from edupulse.model.base import (
@@ -149,6 +152,12 @@ class ProphetForecaster(BaseForecaster):
         regressors = self._regressors
         if self._field_models and "field" in features.columns:
             field = features["field"].iloc[0]
+            if field not in self._field_models:
+                logger.warning(
+                    "Prophet: 미학습 분야 '%s' — 첫 번째 분야 모델로 대체 예측합니다. "
+                    "정확도가 낮을 수 있습니다. 학습된 분야: %s",
+                    field, list(self._field_models.keys()),
+                )
             model = self._field_models.get(field, self._model)
             regressors = self._field_regressors.get(field, self._regressors)
 

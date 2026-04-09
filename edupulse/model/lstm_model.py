@@ -207,6 +207,8 @@ def _augment_sequences(
     scale_range: tuple[float, float] = (0.95, 1.05),
     n_augments: int = 2,
     seed: int = 123,
+    x_zero_scaled: np.ndarray | None = None,
+    y_zero_scaled: float | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Feature-aware 시퀀스 증강 (jittering + scaling).
 
@@ -220,6 +222,8 @@ def _augment_sequences(
         scale_range: (min_scale, max_scale) 스케일링 범위
         n_augments: 생성할 증강 복사본 수 (총 출력 = 원본 + n_augments)
         seed: 재현성을 위한 난수 시드
+        x_zero_scaled: scaler_X.transform(zeros)의 결과 (바이어스 보정용)
+        y_zero_scaled: scaler_y.transform([[0]])[0][0] (바이어스 보정용)
 
     Returns:
         (원본 + 증강) xs, ys 배열
@@ -231,24 +235,31 @@ def _augment_sequences(
     aug_xs, aug_ys = [xs], [ys]
     n_aug_features = len(AUGMENTABLE_FEATURES)
 
+    # 바이어스 보정: MinMaxScaler 공간에서 raw*factor에 대응하는 보정
+    # new_scaled = old_scaled * factor + zero_scaled * (1 - factor)
+    x_offset = None
+    if x_zero_scaled is not None:
+        x_offset = x_zero_scaled[AUGMENTABLE_FEATURES].astype(np.float32)
+
     for _ in range(n_augments):
         augmented = xs.copy()
 
-        # Jittering: 연속값 피처에만 가우시안 노이즈 추가
         noise = rng.normal(
             0, jitter_std, size=(len(xs), xs.shape[1], n_aug_features),
         ).astype(np.float32)
         augmented[:, :, AUGMENTABLE_FEATURES] += noise
 
-        # Scaling: 시퀀스별 동일 스케일 팩터로 연속값 피처만 스케일링
         scales = rng.uniform(
             scale_range[0], scale_range[1], size=(len(xs), 1, 1),
         ).astype(np.float32)
         augmented[:, :, AUGMENTABLE_FEATURES] *= scales
+        if x_offset is not None:
+            augmented[:, :, AUGMENTABLE_FEATURES] += x_offset * (1 - scales)
 
-        # 타겟도 동일 비율로 스케일링 (lag 피처가 타겟의 시차 파생이므로 유효)
         y_scales = scales.squeeze(axis=(1, 2))
         scaled_ys = ys * y_scales
+        if y_zero_scaled is not None:
+            scaled_ys += y_zero_scaled * (1 - y_scales)
 
         aug_xs.append(augmented)
         aug_ys.append(scaled_ys)
@@ -294,7 +305,7 @@ def _train_loop(
 
     dataset = torch.utils.data.TensorDataset(X_train, y_train)
     loader = torch.utils.data.DataLoader(
-        dataset, batch_size=BATCH_SIZE, shuffle=False,
+        dataset, batch_size=BATCH_SIZE, shuffle=True,
     )
 
     best_val_loss = float("inf")
@@ -390,12 +401,23 @@ class LSTMForecaster(BaseForecaster):
                 f"sequence_length({SEQUENCE_LENGTH})보다 많아야 합니다."
             )
 
+        # 필드별 시퀀스가 연속 배치되므로, 셔플 후 분할하여 편향 방지
         val_size = max(1, int(len(xs) * VAL_RATIO))
+        rng = np.random.default_rng(42)
+        indices = rng.permutation(len(xs))
+        xs, ys = xs[indices], ys[indices]
         xs_train, xs_val = xs[:-val_size], xs[-val_size:]
         ys_train, ys_val = ys[:-val_size], ys[-val_size:]
 
         if augment:
-            xs_train, ys_train = _augment_sequences(xs_train, ys_train)
+            x_zero = self._scaler_X.transform(
+                np.zeros((1, len(FEATURE_COLUMNS)), dtype=np.float32),
+            )[0]
+            y_zero = float(self._scaler_y.transform(np.zeros((1, 1), dtype=np.float32))[0][0])
+            xs_train, ys_train = _augment_sequences(
+                xs_train, ys_train,
+                x_zero_scaled=x_zero, y_zero_scaled=y_zero,
+            )
 
         X_train_t = torch.tensor(xs_train).to(device)
         y_train_t = torch.tensor(ys_train).unsqueeze(1).to(device)
@@ -513,7 +535,14 @@ class LSTMForecaster(BaseForecaster):
             xs_inner_tr, xs_inner_val = xs_tr[:-inner_val_size], xs_tr[-inner_val_size:]
             ys_inner_tr, ys_inner_val = ys_tr[:-inner_val_size], ys_tr[-inner_val_size:]
 
-            xs_inner_tr, ys_inner_tr = _augment_sequences(xs_inner_tr, ys_inner_tr)
+            x_zero = scaler_X.transform(
+                np.zeros((1, X_raw.shape[1]), dtype=np.float32),
+            )[0]
+            y_zero = float(scaler_y.transform(np.zeros((1, 1), dtype=np.float32))[0][0])
+            xs_inner_tr, ys_inner_tr = _augment_sequences(
+                xs_inner_tr, ys_inner_tr,
+                x_zero_scaled=x_zero, y_zero_scaled=y_zero,
+            )
 
             device = get_device()
             X_t = torch.tensor(xs_inner_tr).to(device)
