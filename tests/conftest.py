@@ -3,7 +3,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from edupulse.api.main import app
-from edupulse.api.dependencies import MODEL_REGISTRY
+from edupulse.model.predict import _model_cache, MODEL_VERSION
 from edupulse.constants import DemandTier
 from edupulse.model.base import BaseForecaster, PredictionResult
 
@@ -43,9 +43,9 @@ def client():
     lifespan이 load_models()를 호출하므로, TestClient 시작 후 FakeForecaster로 교체한다.
     """
     with TestClient(app) as c:
-        MODEL_REGISTRY["xgboost"] = FakeForecaster()  # lifespan 완료 후 교체
+        _model_cache[f"xgboost_v{MODEL_VERSION}"] = FakeForecaster()
         yield c
-    MODEL_REGISTRY.clear()
+    _model_cache.clear()
 
 
 @pytest.fixture
@@ -55,6 +55,6 @@ def client_no_model():
     lifespan이 load_models()를 호출하므로, TestClient 시작 후 registry를 clear한다.
     """
     with TestClient(app) as c:
-        MODEL_REGISTRY.clear()  # lifespan 완료 후 클리어
+        _model_cache.clear()  # lifespan 완료 후 클리어
         yield c
-    MODEL_REGISTRY.clear()
+    _model_cache.clear()

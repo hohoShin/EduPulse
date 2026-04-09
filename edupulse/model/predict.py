@@ -20,16 +20,24 @@ logger = logging.getLogger(__name__)
 # 분야 → 인코딩 값 (알파벳 순, transformer.py의 astype("category").cat.codes와 동일)
 FIELD_ENCODING = {"art": 0, "coding": 1, "game": 2, "security": 3}
 
+# 단일 모델 버전 상수 — dependencies.py에서도 이 값을 참조한다.
+MODEL_VERSION = 1
+
 # 데이터 파일 경로
 _ENROLLMENT_PATH = "edupulse/data/raw/internal/enrollment_history.csv"
 _SEARCH_TRENDS_PATH = "edupulse/data/raw/external/search_trends.csv"
 _JOB_POSTINGS_PATH = "edupulse/data/raw/external/job_postings.csv"
 
-# 모듈 레벨 모델 캐시 (직접 로딩 전략 — api.dependencies.MODEL_REGISTRY와 별도)
+# 모듈 레벨 모델 캐시
 _model_cache: dict[str, BaseForecaster] = {}
 
 
-def _load_model(model_name: str, version: int = 1) -> BaseForecaster:
+def clear_model_cache() -> None:
+    """모델 캐시 초기화. 테스트 또는 리로딩 시 사용."""
+    _model_cache.clear()
+
+
+def load_model(model_name: str, version: int = MODEL_VERSION) -> BaseForecaster:
     """모델 캐시에서 반환하거나 새로 로딩.
 
     Args:
@@ -76,7 +84,7 @@ def _load_model(model_name: str, version: int = 1) -> BaseForecaster:
     return _model_cache[key]
 
 
-def _load_ensemble(version: int = 1) -> "BaseForecaster":
+def _load_ensemble(version: int = MODEL_VERSION) -> "BaseForecaster":
     """가용한 모델을 모두 로딩하여 EnsembleForecaster 반환.
 
     각 모델 로딩 실패 시 조용히 건너뛴다. 1개 이상 로딩되면 앙상블 반환.
@@ -127,7 +135,7 @@ def _load_ensemble(version: int = 1) -> "BaseForecaster":
     return ensemble
 
 
-def _build_features(course_name: str, start_date: str, field: str) -> pd.DataFrame:
+def build_features(course_name: str, start_date: str, field: str) -> pd.DataFrame:
     """API raw 입력 → feature DataFrame 변환.
 
     실제 CSV 데이터에서 해당 분야/시점의 피처를 조립한다.
@@ -254,6 +262,6 @@ def predict_demand(
     Returns:
         PredictionResult
     """
-    model = _load_model(model_name, version)
-    features = _build_features(course_name, start_date, field)
+    model = load_model(model_name, version)
+    features = build_features(course_name, start_date, field)
     return model.predict(features)
