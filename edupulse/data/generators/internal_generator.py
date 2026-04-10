@@ -182,7 +182,7 @@ def generate_web_logs(
         seed: 재현성을 위한 난수 시드
 
     Returns:
-        DataFrame with columns: date, field, page_views, cart_abandon_rate, ds, y
+        DataFrame with columns: date, field, page_views, ds, y
     """
     rng = np.random.default_rng(seed)
     records = []
@@ -202,20 +202,12 @@ def generate_web_logs(
             noise_pv = rng.normal(0, 2.0)
             page_views = int(round(max(1, future_enrollment * multiplier + noise_pv)))
 
-            noise_rate = rng.normal(0, 0.03)
-            cart_abandon_rate = float(np.clip(
-                0.70 - 0.03 * future_enrollment + noise_rate,
-                0.20,
-                0.95,
-            ))
-
             dt_ts = pd.Timestamp(dt)
             date_str = dt_ts.strftime("%Y-%m-%d")
             records.append({
                 "date": date_str,
                 "field": field,
                 "page_views": page_views,
-                "cart_abandon_rate": round(cart_abandon_rate, 4),
                 "ds": date_str,
                 "y": page_views,
             })

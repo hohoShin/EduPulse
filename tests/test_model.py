@@ -42,7 +42,6 @@ def _make_training_df(n=100):
         "consultation_count": rng.integers(0, 30, size=n).tolist(),
         "conversion_rate": rng.uniform(0.05, 0.65, size=n).tolist(),
         "page_views": rng.integers(10, 200, size=n).tolist(),
-        "cart_abandon_rate": rng.uniform(0.2, 0.95, size=n).tolist(),
         "age_group_diversity": rng.uniform(0.5, 1.1, size=n).tolist(),
         "has_cert_exam": rng.choice([0, 1], size=n).tolist(),
         "weeks_to_exam": rng.integers(0, 27, size=n).tolist(),

@@ -64,15 +64,13 @@ def test_student_profiles_fields_coverage(enrollment_df):
 def test_generate_web_logs_schema(enrollment_df):
     """웹 로그에 필수 컬럼이 있어야 한다."""
     df = generate_web_logs(enrollment_df, seed=46)
-    assert set(["date", "field", "page_views", "cart_abandon_rate", "ds", "y"]).issubset(df.columns)
+    assert set(["date", "field", "page_views", "ds", "y"]).issubset(df.columns)
 
 
 def test_generate_web_logs_value_ranges(enrollment_df):
-    """page_views >= 1, 0 < cart_abandon_rate < 1 이어야 한다."""
+    """page_views >= 1 이어야 한다."""
     df = generate_web_logs(enrollment_df, seed=46)
     assert (df["page_views"] >= 1).all()
-    assert (df["cart_abandon_rate"] > 0).all()
-    assert (df["cart_abandon_rate"] < 1).all()
 
 
 # --- 자격증 시험 일정 테스트 ---

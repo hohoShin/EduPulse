@@ -124,11 +124,10 @@ date, field, enrollment_count, age_20s_ratio, age_30s_ratio, age_40plus_ratio, p
 
 **웹 로그 (web_logs.csv)**
 ```
-date, field, page_views, cart_abandon_rate, ds, y
+date, field, page_views, ds, y
 ```
 - 페이지뷰 = 1~3주 후 등록 인원 × 분야별 배율 + 노이즈
 - 배율: coding=15.0, security=12.0, game=18.0, art=10.0
-- `cart_abandon_rate`는 모델 피처에서 제거됨 (학원에 장바구니 개념 없음)
 
 ### 2.5 일정/경쟁/계절 데이터 (schedule_generator.py)
 

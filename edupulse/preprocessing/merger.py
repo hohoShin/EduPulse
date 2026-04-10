@@ -33,7 +33,7 @@ def merge_datasets(
         job_df: 채용 공고 DataFrame (optional). field, date, job_count 필요.
         consultation_df: 상담 로그 DataFrame (optional). field, date, consultation_count, conversion_rate 필요.
         student_profile_df: 학생 프로필 DataFrame (optional). field, date, age_20s_ratio, age_30s_ratio, age_40plus_ratio, purpose_career, purpose_hobby, purpose_cert 필요.
-        web_log_df: 웹 로그 DataFrame (optional). field, date, page_views, cart_abandon_rate 필요.
+        web_log_df: 웹 로그 DataFrame (optional). field, date, page_views 필요.
         cert_exam_df: 자격증 시험 일정 DataFrame (optional). field, date, has_cert_exam, weeks_to_exam 필요.
         competitor_df: 경쟁사 데이터 DataFrame (optional). field, date, competitor_openings, competitor_avg_price 필요.
         seasonal_df: 계절 이벤트 DataFrame (optional). date, is_vacation, is_exam_season, is_semester_start 필요. (field 없음)
@@ -83,7 +83,7 @@ def merge_datasets(
         web_log_df = web_log_df.copy()
         web_log_df[date_col] = pd.to_datetime(web_log_df[date_col])
         web_log_df[date_col] = web_log_df[date_col].dt.to_period("W").dt.start_time
-        web_cols = web_log_df[join_keys + ["page_views", "cart_abandon_rate"]].copy()
+        web_cols = web_log_df[join_keys + ["page_views"]].copy()
         merged = merged.merge(web_cols, on=join_keys, how="left")
 
     if cert_exam_df is not None and not cert_exam_df.empty:
