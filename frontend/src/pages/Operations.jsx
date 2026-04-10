@@ -246,9 +246,9 @@ const Operations = () => {
                   </div>
                 )}
 
-                {/* Marketing link button when high risk */}
+                {/* Marketing link buttons when high risk */}
                 {isHighRisk && (
-                  <div style={{ display: 'flex', gap: 'var(--space-3)', marginTop: 'var(--space-2)' }}>
+                  <div style={{ display: 'flex', gap: 'var(--space-3)', marginTop: 'var(--space-2)', flexWrap: 'wrap' }}>
                     <Link
                       to="/marketing"
                       style={{
@@ -266,7 +266,26 @@ const Operations = () => {
                       }}
                     >
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2" /></svg>
-                      마케팅 강화 바로가기
+                      마케팅 분석 바로가기
+                    </Link>
+                    <Link
+                      to="/simulator"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 'var(--space-2)',
+                        padding: 'var(--space-2) var(--space-4)',
+                        backgroundColor: 'var(--color-background)',
+                        border: '1px solid var(--color-border)',
+                        borderRadius: 'var(--radius-md)',
+                        color: 'var(--color-text-main)',
+                        fontSize: '0.875rem',
+                        fontWeight: '600',
+                        textDecoration: 'none',
+                      }}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3" /></svg>
+                      시뮬레이터에서 재분석
                     </Link>
                   </div>
                 )}
@@ -340,6 +359,10 @@ const Operations = () => {
                     </table>
                   </div>
                 )}
+
+                <div style={{ marginTop: 'var(--space-3)', fontSize: '0.75rem', color: 'var(--color-text-muted)', fontStyle: 'italic' }}>
+                  변경사항은 데모 모드에서 저장되지 않습니다.
+                </div>
 
                 {scheduleData.assignment_plan?.summary && (
                   <div style={{ marginTop: 'var(--space-4)', fontSize: '0.875rem', color: 'var(--color-text-muted)' }}>
