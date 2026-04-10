@@ -137,6 +137,28 @@ Droplet 사양 한계로 LSTM은 서버 자동 재학습에서 제외합니다.
 scp model/saved/lstm/model.pt user@your-droplet-ip:/app/model/saved/lstm/
 ```
 
+## 🖥️ 프론트엔드 (Phase A)
+
+현재 프론트엔드는 **Phase A: Mock-First Scaffold** 단계에 있습니다. 백엔드 서버 없이도 핵심 기능을 시뮬레이션하고 UI를 확인할 수 있습니다.
+
+### 주요 기능
+- **Dashboard**: 분야별 수요 예측 트렌드 시각화 (Curated Demo)
+- **Simulator**: 신규 강좌 정보 입력 시 수요 등급 및 대응 전략 시뮬레이션
+- **Adapter Pattern**: Mock 데이터와 실데이터를 유연하게 전환할 수 있는 구조
+
+### 로컬 실행 방법
+```bash
+cd frontend
+npm install
+npm run dev
+```
+- 접속 주소: `http://localhost:5173/`
+
+### 상세 개발 단계
+- 현재 상태: Phase A 완료 (Mock 기반)
+- 다음 단계: Phase B (Contract Hardening)
+- 상세 로드맵: [`docs/ai_plans/edupulse-frontend-phases.md`](docs/ai_plans/edupulse-frontend-phases.md)
+
 ---
 
 ## 📁 프로젝트 파일 구조
@@ -224,40 +246,19 @@ edupulse/                              # 프로젝트 루트
 │   ├── test_demand.py                 # 수요 예측 API 테스트
 │   └── test_health.py                # 헬스체크 테스트
 │
-├── frontend/                      # 대시보드 프론트엔드
+├── frontend/                      # 대시보드 프론트엔드 (Phase A)
 │   ├── src/
+│   │   ├── api/
+│   │   │   ├── adapters/          # Mock/Real 데이터 어댑터
+│   │   │   ├── viewModels.js      # UI용 데이터 변환 로직
 │   │   ├── pages/
-│   │   │   ├── Dashboard.jsx      # 메인 예측 대시보드
-│   │   │   ├── Simulator.jsx      # 신규 강좌 시뮬레이터
-│   │   │   └── Reports.jsx        # 전략 리포트
+│   │   │   ├── Dashboard.jsx      # 메인 예측 대시보드 (Demo)
+│   │   │   └── Simulator.jsx      # 수요 시뮬레이터 (Mock-First)
 │   │   └── components/
 │   │       ├── DemandChart.jsx    # 수요 예측 시각화
 │   │       ├── AlertPanel.jsx     # 폐강 리스크·광고 알림
-│   │       └── ScheduleBoard.jsx  # 강사 배정 보드
-│   └── public/
-│
-├── notebooks/                         # 분석 실험용 Jupyter 노트북
-│   ├── eda.ipynb                      # 탐색적 데이터 분석
-│   ├── feature_engineering.ipynb      # 피처 엔지니어링 실험
-│   ├── model_comparison.ipynb         # 모델 성능 비교 (XGBoost/Prophet/LSTM/Ensemble)
-│   ├── model_experiments.ipynb        # 개별 모델 하이퍼파라미터 튜닝
-│   └── pipeline_test.ipynb            # 전체 파이프라인 End-to-End 테스트
-│
-├── docs/                              # 프로젝트 문서
-│   ├── ai_chat_report/                # AI 활용 리포트 (대화 기반)
-│   ├── ai_plans/                      # AI 기획 문서
-│   ├── ai_tool_report/                # AI 도구 활용 리포트
-│   └── 합성_데이터_생성_가이드.md        # 합성 데이터 생성 가이드
-│
-├── Dockerfile                         # Docker 이미지 빌드
-├── docker-compose.yml                 # 전체 서비스 컨테이너 구성
-├── docker-compose.dev.yml             # 개발용 Docker 구성
-├── pyproject.toml                     # 프로젝트 메타데이터 및 빌드 설정
-├── requirements.txt                   # 공통 Python 패키지
-├── requirements-dev.txt               # 로컬 개발 전용 패키지
-├── requirements-server.txt            # 서버 전용 패키지
-├── .env.example                       # 환경 변수 템플릿
-└── README.md
+│   │       └── StatusPanel.jsx    # 시스템 상태 표시
+│   └── README.md
 ```
 
 ---
@@ -344,13 +345,19 @@ pytest tests/test_demand.py -v
 
 ### 생성되는 데이터 경로
 
-| 단계 | 경로 | 내용 |
-|---|---|---|
-| 합성 데이터 | `edupulse/data/raw/internal/enrollment_history.csv` | 수강 이력 |
-| 합성 데이터 | `edupulse/data/raw/external/search_trends.csv` | 검색 트렌드 |
-| 합성 데이터 | `edupulse/data/raw/external/job_postings.csv` | 채용 공고 |
-| 전처리 | `edupulse/data/warehouse/training_dataset.csv` | 학습용 최종 데이터셋 |
-| 모델 저장 | `edupulse/model/saved/{모델명}/v{버전}/` | 학습된 모델 파일 |
+| 단계 | 경로 | 내용 | 상태 |
+|---|---|---|---|
+| 합성 데이터 | `edupulse/data/raw/internal/enrollment_history.csv` | 수강 이력 | 합성 생성기 구현 완료 |
+| 합성 데이터 | `edupulse/data/raw/internal/consultation_logs.csv` | 상담 로그 | 합성 생성기 구현 완료 |
+| 합성 데이터 | `edupulse/data/raw/internal/student_profiles.csv` | 학생 프로필 | 합성 생성기 구현 완료 |
+| 합성 데이터 | `edupulse/data/raw/internal/web_logs.csv` | 웹/앱 로그 | 합성 생성기 구현 완료 |
+| 합성 데이터 | `edupulse/data/raw/external/search_trends.csv` | 검색 트렌드 | 합성 생성기 구현 완료 |
+| 합성 데이터 | `edupulse/data/raw/external/job_postings.csv` | 채용 공고 | 합성 생성기 구현 완료 |
+| 합성 데이터 | `edupulse/data/raw/external/cert_exam_schedule.csv` | 자격증 시험 일정 | 합성 생성기 구현 완료 |
+| 합성 데이터 | `edupulse/data/raw/external/competitor_data.csv` | 경쟁 학원 데이터 | 합성 생성기 구현 완료 |
+| 합성 데이터 | `edupulse/data/raw/external/seasonal_events.csv` | 계절성 이벤트 | 합성 생성기 구현 완료 |
+| 전처리 | `edupulse/data/warehouse/training_dataset.csv` | 학습용 최종 데이터셋 | |
+| 모델 저장 | `edupulse/model/saved/{모델명}/v{버전}/` | 학습된 모델 파일 | |
 
 ---
 

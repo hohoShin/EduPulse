@@ -9,7 +9,7 @@ from fastapi import FastAPI
 
 from edupulse.api.dependencies import load_models
 from edupulse.api.middleware import setup_middleware
-from edupulse.api.routers import health, demand, schedule, marketing
+from edupulse.api.routers import health, demand, schedule, marketing, simulation
 
 
 @asynccontextmanager
@@ -32,3 +32,4 @@ app.include_router(health.router, prefix="/api/v1", tags=["health"])
 app.include_router(demand.router, prefix="/api/v1", tags=["demand"])
 app.include_router(schedule.router, prefix="/api/v1", tags=["schedule"])
 app.include_router(marketing.router, prefix="/api/v1", tags=["marketing"])
+app.include_router(simulation.router, prefix="/api/v1", tags=["simulation"])

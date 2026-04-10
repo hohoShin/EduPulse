@@ -8,7 +8,7 @@ from edupulse.constants import DemandTier
 
 
 class DemandRequest(BaseModel):
-    course_name: str
+    course_name: str  # 현재 모델에서 미사용 — 향후 과정별 세분화 시 활용 예정
     start_date: date
     field: Literal["coding", "security", "game", "art"]
     model_name: Literal["xgboost", "prophet", "ensemble"] = "ensemble"
@@ -27,3 +27,17 @@ class DemandResponse(BaseModel):
     confidence_interval: ConfidenceInterval
     model_used: str
     prediction_date: datetime
+
+
+class ClosureRiskRequest(BaseModel):
+    course_name: str
+    start_date: date
+    field: Literal["coding", "security", "game", "art"]
+    model_name: Literal["xgboost", "prophet", "ensemble"] = "ensemble"
+
+
+class ClosureRiskResponse(BaseModel):
+    risk_score: float
+    risk_level: Literal["high", "medium", "low"]
+    contributing_factors: list[str]
+    recommendation: str

@@ -1,11 +1,22 @@
 """앙상블 수요 예측 모델 — 여러 모델의 가중 평균으로 최종 예측."""
 from __future__ import annotations
 
+import logging
+
 import numpy as np
 import pandas as pd
 
 from edupulse.constants import classify_demand
-from edupulse.model.base import BaseForecaster, PredictionResult
+from edupulse.model.base import (
+    BaseForecaster,
+    ModelMetadata,
+    PredictionResult,
+    _extract_data_info,
+    _get_package_version,
+    save_metadata,
+)
+
+logger = logging.getLogger(__name__)
 
 
 class EnsembleForecaster(BaseForecaster):
@@ -87,7 +98,6 @@ class EnsembleForecaster(BaseForecaster):
             정규화된 가중치 리스트 (names 순서 대응)
         """
         if self._weights is None:
-            # 균등 가중치
             n = len(names)
             return [1.0 / n] * n
 
@@ -108,7 +118,7 @@ class EnsembleForecaster(BaseForecaster):
             try:
                 model.train(df)
             except Exception as exc:
-                print(f"[ensemble] {name} 학습 실패 (건너뜀): {exc}")
+                logger.warning("앙상블: %s 학습 실패 (건너뜀) — %s", name, exc)
 
     def _predict(self, features: pd.DataFrame) -> PredictionResult:
         """각 모델의 예측을 수집하고 가중 평균하여 앙상블 결과 반환.
@@ -133,7 +143,7 @@ class EnsembleForecaster(BaseForecaster):
 
         for name, model in self._models.items():
             try:
-                result = model._predict(features)
+                result = model.predict(features)
                 enrollments.append(float(result.predicted_enrollment))
                 lowers.append(result.confidence_lower)
                 uppers.append(result.confidence_upper)
@@ -141,7 +151,7 @@ class EnsembleForecaster(BaseForecaster):
                     mapes.append(result.mape)
                 used_names.append(name)
             except Exception as exc:
-                print(f"[ensemble] {name} 예측 실패 (건너뜀): {exc}")
+                logger.warning("앙상블: %s 예측 실패 (건너뜀) — %s", name, exc)
 
         if not enrollments:
             raise RuntimeError("앙상블 내 모든 모델 예측에 실패했습니다.")
@@ -152,13 +162,10 @@ class EnsembleForecaster(BaseForecaster):
         predicted_enrollment = max(0, round(avg_enrollment))
         demand_tier = classify_demand(predicted_enrollment)
 
-        # confidence: lower = min, upper = max (보수적 구간)
-        confidence_lower = max(0.0, round(float(min(lowers)), 1))
-        confidence_upper = round(float(max(uppers)), 1)
+        confidence_lower = max(0.0, round(float(np.average(lowers, weights=weights)), 1))
+        confidence_upper = round(float(np.average(uppers, weights=weights)), 1)
 
         avg_mape = float(np.mean(mapes)) if mapes else None
-
-        # model_used: "ensemble(xgboost+prophet)" 형식
         model_used = f"ensemble({'+'.join(used_names)})"
 
         return PredictionResult(
@@ -181,7 +188,8 @@ class EnsembleForecaster(BaseForecaster):
             {'mape': float, 'n_splits': int, 'model_mapes': dict}
         """
         model_mapes: dict[str, float] = {}
-        all_mapes: list[float] = []
+        valid_names: list[str] = []
+        valid_mapes: list[float] = []
 
         for name, model in self._models.items():
             try:
@@ -189,23 +197,49 @@ class EnsembleForecaster(BaseForecaster):
                 mape_val = result.get("mape", float("nan"))
                 model_mapes[name] = mape_val
                 if not np.isnan(mape_val):
-                    all_mapes.append(mape_val)
+                    valid_names.append(name)
+                    valid_mapes.append(mape_val)
             except Exception as exc:
-                print(f"[ensemble] {name} 평가 실패 (건너뜀): {exc}")
+                logger.warning("앙상블: %s 평가 실패 (건너뜀) — %s", name, exc)
                 model_mapes[name] = float("nan")
 
-        avg_mape = float(np.mean(all_mapes)) if all_mapes else float("nan")
+        if valid_names:
+            weights = self._get_effective_weights(valid_names)
+            avg_mape = float(np.average(valid_mapes, weights=weights))
+        else:
+            avg_mape = float("nan")
         return {"mape": avg_mape, "n_splits": n_splits, "model_mapes": model_mapes}
 
-    def save(self, path: str, version: int) -> None:
+    def save(self, path: str, version: int, df: pd.DataFrame | None = None) -> None:
         """각 모델을 개별 하위 디렉터리에 저장.
 
         Args:
             path: 저장 루트 경로 (예: edupulse/model/saved/ensemble)
             version: 버전 번호
+            df: 학습 DataFrame (메타데이터 생성용, None이면 메타데이터 생략)
         """
         for name, model in self._models.items():
-            model.save(f"{path}/{name}", version=version)
+            model.save(f"{path}/{name}", version=version, df=df)
+
+        if df is not None:
+            from datetime import datetime, timezone
+
+            data_info = _extract_data_info(df)
+            metadata = ModelMetadata(
+                model_name="ensemble",
+                version=version,
+                trained_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                data_rows=data_info["data_rows"],
+                data_date_range=data_info["data_date_range"],
+                feature_columns=[],
+                hyperparameters={
+                    "weights": self._weights,
+                    "models": list(self._models.keys()),
+                },
+                mape=None,
+                fields=data_info["fields"],
+            )
+            save_metadata(path, version, metadata)
 
     def load(self, path: str, version: int) -> None:
         """각 모델을 개별 하위 디렉터리에서 로딩.

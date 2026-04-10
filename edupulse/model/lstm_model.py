@@ -16,7 +16,17 @@ from sklearn.model_selection import TimeSeriesSplit
 from sklearn.preprocessing import MinMaxScaler
 
 from edupulse.constants import classify_demand
-from edupulse.model.base import BaseForecaster, PredictionResult
+from edupulse.model.base import (
+    BaseForecaster,
+    ModelMetadata,
+    PredictionResult,
+    _extract_data_info,
+    _get_package_version,
+    ensure_feature_columns,
+    load_metadata,
+    save_metadata,
+    warn_feature_mismatch,
+)
 from edupulse.model.utils import get_device
 from edupulse.model.xgboost_model import FEATURE_COLUMNS, TARGET_COLUMN
 
@@ -45,6 +55,39 @@ def _get_torch():
     return _torch
 
 
+def _check_feature_compatibility(path: str, version: int, current_features: list[str]) -> None:
+    """metadata.json의 피처 수와 현재 피처 수를 비교. 불일치 시 RuntimeError.
+
+    load_state_dict() 전에 호출하여 아키텍처 불일치 크래시를 방지한다.
+
+    Args:
+        path: 모델 저장 루트 경로
+        version: 버전 번호
+        current_features: 현재 코드의 피처 목록
+    """
+    try:
+        meta = load_metadata(path, version)
+    except FileNotFoundError:
+        return  # metadata 없으면 검증 불가 — 경고만 (기존 동작)
+
+    saved = meta.feature_columns
+    if not saved:
+        return
+
+    if len(saved) != len(current_features):
+        raise RuntimeError(
+            f"LSTM 피처 수 불일치: 학습 시 {len(saved)}개 → 현재 {len(current_features)}개. "
+            f"저장된 가중치와 아키텍처가 호환되지 않습니다. "
+            f"학습: {saved}, 현재: {current_features}"
+        )
+
+    if list(saved) != list(current_features):
+        raise RuntimeError(
+            f"LSTM 피처 순서/구성 불일치: "
+            f"학습: {saved}, 현재: {current_features}"
+        )
+
+
 class EnrollmentLSTM:
     """nn.Module 래퍼. torch import를 지연 평가하여 Droplet 호환성 유지."""
 
@@ -68,9 +111,8 @@ class EnrollmentLSTM:
 
             def forward(self, x):
                 """x: (batch, seq_len, input_size) → (batch, 1)."""
-                out, _ = self.lstm(x)          # (batch, seq, hidden)
-                last = out[:, -1, :]           # 마지막 타임스텝
-                return self.fc(last)           # (batch, 1)
+                out, _ = self.lstm(x)
+                return self.fc(out[:, -1, :])
 
         return _LSTMModule(*args, **kwargs)
 
@@ -122,8 +164,8 @@ def _build_sequences_per_field(
         xs: (n_total_windows, sequence_length, n_features)
         ys: (n_total_windows,)
     """
-    available = [c for c in feature_cols if c in df.columns]
-    X_raw = df[available].fillna(0).values.astype(np.float32)
+    df = ensure_feature_columns(df, feature_cols, "LSTM.sequences")
+    X_raw = df[feature_cols].fillna(0).values.astype(np.float32)
     y_raw = df[target_col].values.astype(np.float32).reshape(-1, 1)
 
     if fit_scalers:
@@ -136,9 +178,7 @@ def _build_sequences_per_field(
     if "field" not in df.columns or df["field"].nunique() <= 1:
         return _build_sequences(X_scaled, y_scaled, sequence_length)
 
-    # 분야별 시퀀스 생성
     all_xs, all_ys = [], []
-    # 원본 df의 인덱스를 사용하여 분야별 분리
     for field in df["field"].unique():
         mask = df["field"].values == field
         field_X = X_scaled[mask]
@@ -153,12 +193,13 @@ def _build_sequences_per_field(
     return np.concatenate(all_xs), np.concatenate(all_ys)
 
 
-# 증강 대상 피처 인덱스 (연속값만 — 순환 인코딩/카테고리 제외)
-# lag_1w(0), lag_2w(1), lag_4w(2), lag_8w(3), rolling_mean_4w(4),
-# search_volume(7), job_count(8)
-AUGMENTABLE_FEATURES = [0, 1, 2, 3, 4, 7, 8]
-# month_sin(5), month_cos(6), field_encoded(9) — 절대 변형하지 않음
-PROTECTED_FEATURES = [5, 6, 9]
+# 증강 대상 피처 인덱스: 이름 기반으로 동적 계산 (하드코딩 인덱스 사용 금지)
+_PROTECTED_NAMES = {
+    "month_sin", "month_cos", "field_encoded",
+    "has_cert_exam", "is_vacation", "is_exam_season", "is_semester_start",
+}
+PROTECTED_FEATURES = [i for i, c in enumerate(FEATURE_COLUMNS) if c in _PROTECTED_NAMES]
+AUGMENTABLE_FEATURES = [i for i, c in enumerate(FEATURE_COLUMNS) if c not in _PROTECTED_NAMES]
 
 
 def _augment_sequences(
@@ -169,6 +210,8 @@ def _augment_sequences(
     scale_range: tuple[float, float] = (0.95, 1.05),
     n_augments: int = 2,
     seed: int = 123,
+    x_zero_scaled: np.ndarray | None = None,
+    y_zero_scaled: float | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Feature-aware 시퀀스 증강 (jittering + scaling).
 
@@ -182,6 +225,8 @@ def _augment_sequences(
         scale_range: (min_scale, max_scale) 스케일링 범위
         n_augments: 생성할 증강 복사본 수 (총 출력 = 원본 + n_augments)
         seed: 재현성을 위한 난수 시드
+        x_zero_scaled: scaler_X.transform(zeros)의 결과 (바이어스 보정용)
+        y_zero_scaled: scaler_y.transform([[0]])[0][0] (바이어스 보정용)
 
     Returns:
         (원본 + 증강) xs, ys 배열
@@ -193,24 +238,31 @@ def _augment_sequences(
     aug_xs, aug_ys = [xs], [ys]
     n_aug_features = len(AUGMENTABLE_FEATURES)
 
+    # 바이어스 보정: MinMaxScaler 공간에서 raw*factor에 대응하는 보정
+    # new_scaled = old_scaled * factor + zero_scaled * (1 - factor)
+    x_offset = None
+    if x_zero_scaled is not None:
+        x_offset = x_zero_scaled[AUGMENTABLE_FEATURES].astype(np.float32)
+
     for _ in range(n_augments):
         augmented = xs.copy()
 
-        # Jittering: 연속값 피처에만 가우시안 노이즈 추가
         noise = rng.normal(
             0, jitter_std, size=(len(xs), xs.shape[1], n_aug_features),
         ).astype(np.float32)
         augmented[:, :, AUGMENTABLE_FEATURES] += noise
 
-        # Scaling: 시퀀스별 동일 스케일 팩터로 연속값 피처만 스케일링
         scales = rng.uniform(
             scale_range[0], scale_range[1], size=(len(xs), 1, 1),
         ).astype(np.float32)
         augmented[:, :, AUGMENTABLE_FEATURES] *= scales
+        if x_offset is not None:
+            augmented[:, :, AUGMENTABLE_FEATURES] += x_offset * (1 - scales)
 
-        # 타겟도 동일 비율로 스케일링 (lag 피처가 타겟의 시차 파생이므로 유효)
         y_scales = scales.squeeze(axis=(1, 2))
         scaled_ys = ys * y_scales
+        if y_zero_scaled is not None:
+            scaled_ys += y_zero_scaled * (1 - y_scales)
 
         aug_xs.append(augmented)
         aug_ys.append(scaled_ys)
@@ -256,7 +308,7 @@ def _train_loop(
 
     dataset = torch.utils.data.TensorDataset(X_train, y_train)
     loader = torch.utils.data.DataLoader(
-        dataset, batch_size=BATCH_SIZE, shuffle=False,
+        dataset, batch_size=BATCH_SIZE, shuffle=True,
     )
 
     best_val_loss = float("inf")
@@ -306,26 +358,18 @@ class LSTMForecaster(BaseForecaster):
         self._mape: float | None = None
         self._is_fitted: bool = False
 
-    # ------------------------------------------------------------------
-    # 내부 헬퍼
-    # ------------------------------------------------------------------
-
     def _prepare_arrays(
         self, df: pd.DataFrame
     ) -> tuple[np.ndarray, np.ndarray]:
         """DataFrame → 정규화된 (X, y) numpy 배열 반환."""
-        available = [c for c in FEATURE_COLUMNS if c in df.columns]
-        X_raw = df[available].fillna(0).values.astype(np.float32)
+        df = ensure_feature_columns(df, FEATURE_COLUMNS, "LSTM.prepare")
+        X_raw = df[FEATURE_COLUMNS].fillna(0).values.astype(np.float32)
         y_raw = df[TARGET_COLUMN].values.astype(np.float32).reshape(-1, 1)
         return X_raw, y_raw
 
     def _make_model(self):
         """EnrollmentLSTM 인스턴스 생성 (torch 필요)."""
         return EnrollmentLSTM()
-
-    # ------------------------------------------------------------------
-    # BaseForecaster 구현
-    # ------------------------------------------------------------------
 
     def train(
         self,
@@ -350,7 +394,6 @@ class LSTMForecaster(BaseForecaster):
         torch = _get_torch()
         device = get_device()
 
-        # 분야별 시퀀스 생성 (스케일러 fit 포함)
         xs, ys = _build_sequences_per_field(
             df, FEATURE_COLUMNS, TARGET_COLUMN, SEQUENCE_LENGTH,
             self._scaler_X, self._scaler_y, fit_scalers=True,
@@ -361,14 +404,23 @@ class LSTMForecaster(BaseForecaster):
                 f"sequence_length({SEQUENCE_LENGTH})보다 많아야 합니다."
             )
 
-        # Train/Val 분할 (시간 순서 유지) — 증강 BEFORE가 아닌 분할 AFTER
+        # 필드별 시퀀스가 연속 배치되므로, 셔플 후 분할하여 편향 방지
         val_size = max(1, int(len(xs) * VAL_RATIO))
+        rng = np.random.default_rng(42)
+        indices = rng.permutation(len(xs))
+        xs, ys = xs[indices], ys[indices]
         xs_train, xs_val = xs[:-val_size], xs[-val_size:]
         ys_train, ys_val = ys[:-val_size], ys[-val_size:]
 
-        # 증강: 학습 데이터에만 적용 (검증 데이터는 원본 유지)
         if augment:
-            xs_train, ys_train = _augment_sequences(xs_train, ys_train)
+            x_zero = self._scaler_X.transform(
+                np.zeros((1, len(FEATURE_COLUMNS)), dtype=np.float32),
+            )[0]
+            y_zero = float(self._scaler_y.transform(np.zeros((1, 1), dtype=np.float32))[0][0])
+            xs_train, ys_train = _augment_sequences(
+                xs_train, ys_train,
+                x_zero_scaled=x_zero, y_zero_scaled=y_zero,
+            )
 
         X_train_t = torch.tensor(xs_train).to(device)
         y_train_t = torch.tensor(ys_train).unsqueeze(1).to(device)
@@ -397,19 +449,17 @@ class LSTMForecaster(BaseForecaster):
         torch = _get_torch()
         device = get_device()
 
-        available = [c for c in FEATURE_COLUMNS if c in features.columns]
-        X_raw = features[available].fillna(0).values.astype(np.float32)
+        features = ensure_feature_columns(features, FEATURE_COLUMNS, "LSTM.predict")
+        X_raw = features[FEATURE_COLUMNS].fillna(0).values.astype(np.float32)
         X_scaled = self._scaler_X.transform(X_raw)
 
-        # sequence_length에 맞게 패딩 (추론 시 데이터가 부족할 수 있음)
         if len(X_scaled) < SEQUENCE_LENGTH:
-            pad = np.zeros(
-                (SEQUENCE_LENGTH - len(X_scaled), X_scaled.shape[1]),
-                dtype=np.float32,
-            )
+            # 스케일링된 공간에서 원본 0에 해당하는 값으로 패딩 (raw 0 → scaled)
+            zero_row = np.zeros((1, X_raw.shape[1]), dtype=np.float32)
+            zero_scaled = self._scaler_X.transform(zero_row)
+            pad = np.repeat(zero_scaled, SEQUENCE_LENGTH - len(X_scaled), axis=0)
             X_scaled = np.vstack([pad, X_scaled])
 
-        # 마지막 SEQUENCE_LENGTH 행을 시퀀스로 사용
         seq = X_scaled[-SEQUENCE_LENGTH:]
         X_tensor = torch.tensor(seq).unsqueeze(0).to(device)  # (1, seq, feat)
 
@@ -417,7 +467,6 @@ class LSTMForecaster(BaseForecaster):
         with torch.no_grad():
             raw_scaled = self._model(X_tensor).item()
 
-        # 역변환
         raw_pred = float(
             self._scaler_y.inverse_transform([[raw_scaled]])[0][0]
         )
@@ -454,13 +503,22 @@ class LSTMForecaster(BaseForecaster):
             return self._evaluate_per_field(df, n_splits)
         return self._evaluate_single(df, n_splits)
 
-    def _evaluate_single(self, df: pd.DataFrame, n_splits: int) -> dict:
-        """단일 시계열 평가."""
-        torch = _get_torch()
+    def _evaluate_fold(
+        self, X_raw: np.ndarray, y_raw: np.ndarray, n_splits: int,
+    ) -> list[float]:
+        """K-Fold 평가 공통 로직. 각 fold의 MAPE 리스트를 반환한다.
 
-        X_raw, y_raw = self._prepare_arrays(df)
+        Args:
+            X_raw: 피처 배열 (n_samples, n_features)
+            y_raw: 타겟 배열 (n_samples, 1)
+            n_splits: K-Fold 분할 수
+
+        Returns:
+            각 fold의 MAPE 값 리스트
+        """
+        torch = _get_torch()
         tscv = TimeSeriesSplit(n_splits=n_splits)
-        mapes = []
+        mapes: list[float] = []
 
         for train_idx, val_idx in tscv.split(X_raw):
             X_tr, X_val = X_raw[train_idx], X_raw[val_idx]
@@ -476,148 +534,87 @@ class LSTMForecaster(BaseForecaster):
             if len(xs_tr) == 0:
                 continue
 
-            # 학습 시퀀스 증강 (train()과 동일하게)
-            xs_tr, ys_tr = _augment_sequences(xs_tr, ys_tr)
+            inner_val_size = max(1, int(len(xs_tr) * VAL_RATIO))
+            xs_inner_tr, xs_inner_val = xs_tr[:-inner_val_size], xs_tr[-inner_val_size:]
+            ys_inner_tr, ys_inner_val = ys_tr[:-inner_val_size], ys_tr[-inner_val_size:]
+
+            x_zero = scaler_X.transform(
+                np.zeros((1, X_raw.shape[1]), dtype=np.float32),
+            )[0]
+            y_zero = float(scaler_y.transform(np.zeros((1, 1), dtype=np.float32))[0][0])
+            xs_inner_tr, ys_inner_tr = _augment_sequences(
+                xs_inner_tr, ys_inner_tr,
+                x_zero_scaled=x_zero, y_zero_scaled=y_zero,
+            )
 
             device = get_device()
-            X_t = torch.tensor(xs_tr).to(device)
-            y_t = torch.tensor(ys_tr).unsqueeze(1).to(device)
+            X_t = torch.tensor(xs_inner_tr).to(device)
+            y_t = torch.tensor(ys_inner_tr).unsqueeze(1).to(device)
+            X_v = torch.tensor(xs_inner_val).to(device)
+            y_v = torch.tensor(ys_inner_val).unsqueeze(1).to(device)
 
             fold_model = self._make_model().to(device)
-            opt = torch.optim.Adam(fold_model.parameters(), lr=1e-3)
-            crit = torch.nn.MSELoss()
-
-            fold_model.train()
-            dataset = torch.utils.data.TensorDataset(X_t, y_t)
-            loader = torch.utils.data.DataLoader(
-                dataset, batch_size=BATCH_SIZE, shuffle=False
+            fold_model = _train_loop(
+                fold_model, X_t, y_t, X_v, y_v,
+                epochs=50, learning_rate=1e-3,
+                patience=PATIENCE, device=device,
             )
-            for _ in range(50):
-                for Xb, yb in loader:
-                    opt.zero_grad()
-                    loss = crit(fold_model(Xb), yb)
-                    loss.backward()
-                    opt.step()
 
             fold_model.eval()
-            preds_scaled, actuals = [], []
+            preds, actuals = [], []
             for i in range(len(X_val_s) - SEQUENCE_LENGTH):
                 seq = X_val_s[i : i + SEQUENCE_LENGTH]
                 X_inf = torch.tensor(seq).unsqueeze(0).to(device)
                 with torch.no_grad():
                     p = fold_model(X_inf).item()
-                pred_inv = float(scaler_y.inverse_transform([[p]])[0][0])
-                act_inv = float(y_val[i + SEQUENCE_LENGTH][0])
-                preds_scaled.append(pred_inv)
-                actuals.append(act_inv)
+                preds.append(float(scaler_y.inverse_transform([[p]])[0][0]))
+                actuals.append(float(y_val[i + SEQUENCE_LENGTH][0]))
 
-            actuals = np.array(actuals)
-            preds_scaled = np.array(preds_scaled)
-            nonzero = actuals != 0
+            actuals_arr = np.array(actuals)
+            preds_arr = np.array(preds)
+            nonzero = actuals_arr != 0
             if nonzero.any():
                 fold_mape = float(
                     np.mean(
                         np.abs(
-                            (actuals[nonzero] - preds_scaled[nonzero])
-                            / actuals[nonzero]
+                            (actuals_arr[nonzero] - preds_arr[nonzero])
+                            / actuals_arr[nonzero]
                         )
                     )
                     * 100
                 )
                 mapes.append(fold_mape)
 
+        return mapes
+
+    def _evaluate_single(self, df: pd.DataFrame, n_splits: int) -> dict:
+        """단일 시계열 평가."""
+        X_raw, y_raw = self._prepare_arrays(df)
+        mapes = self._evaluate_fold(X_raw, y_raw, n_splits)
         avg_mape = float(np.mean(mapes)) if mapes else float("nan")
-        self._mape = avg_mape
+        if self._mape is None:
+            self._mape = avg_mape
         return {"mape": avg_mape, "n_splits": n_splits}
 
     def _evaluate_per_field(self, df: pd.DataFrame, n_splits: int) -> dict:
         """분야별 분리 평가 후 평균 MAPE 반환."""
-        torch = _get_torch()
-        all_mapes = []
-
+        all_mapes: list[float] = []
         for field in df["field"].unique():
             field_df = df[df["field"] == field].sort_values("date").reset_index(drop=True)
             X_raw, y_raw = self._prepare_arrays(field_df)
-            tscv = TimeSeriesSplit(n_splits=n_splits)
-
-            for train_idx, val_idx in tscv.split(X_raw):
-                X_tr, X_val = X_raw[train_idx], X_raw[val_idx]
-                y_tr, y_val = y_raw[train_idx], y_raw[val_idx]
-
-                scaler_X = MinMaxScaler()
-                scaler_y = MinMaxScaler()
-                X_tr_s = scaler_X.fit_transform(X_tr)
-                y_tr_s = scaler_y.fit_transform(y_tr).ravel()
-                X_val_s = scaler_X.transform(X_val)
-
-                xs_tr, ys_tr = _build_sequences(X_tr_s, y_tr_s, SEQUENCE_LENGTH)
-                if len(xs_tr) == 0:
-                    continue
-
-                # 학습 시퀀스 증강 (train()과 동일하게)
-                xs_tr, ys_tr = _augment_sequences(xs_tr, ys_tr)
-
-                device = get_device()
-                X_t = torch.tensor(xs_tr).to(device)
-                y_t = torch.tensor(ys_tr).unsqueeze(1).to(device)
-
-                fold_model = self._make_model().to(device)
-                opt = torch.optim.Adam(fold_model.parameters(), lr=1e-3)
-                crit = torch.nn.MSELoss()
-
-                fold_model.train()
-                dataset = torch.utils.data.TensorDataset(X_t, y_t)
-                loader = torch.utils.data.DataLoader(
-                    dataset, batch_size=BATCH_SIZE, shuffle=False
-                )
-                for _ in range(50):
-                    for Xb, yb in loader:
-                        opt.zero_grad()
-                        loss = crit(fold_model(Xb), yb)
-                        loss.backward()
-                        opt.step()
-
-                fold_model.eval()
-                preds_scaled, actuals = [], []
-                for i in range(len(X_val_s) - SEQUENCE_LENGTH):
-                    seq = X_val_s[i : i + SEQUENCE_LENGTH]
-                    X_inf = torch.tensor(seq).unsqueeze(0).to(device)
-                    with torch.no_grad():
-                        p = fold_model(X_inf).item()
-                    pred_inv = float(scaler_y.inverse_transform([[p]])[0][0])
-                    act_inv = float(y_val[i + SEQUENCE_LENGTH][0])
-                    preds_scaled.append(pred_inv)
-                    actuals.append(act_inv)
-
-                actuals = np.array(actuals)
-                preds_scaled = np.array(preds_scaled)
-                nonzero = actuals != 0
-                if nonzero.any():
-                    fold_mape = float(
-                        np.mean(
-                            np.abs(
-                                (actuals[nonzero] - preds_scaled[nonzero])
-                                / actuals[nonzero]
-                            )
-                        )
-                        * 100
-                    )
-                    all_mapes.append(fold_mape)
-
+            all_mapes.extend(self._evaluate_fold(X_raw, y_raw, n_splits))
         avg_mape = float(np.mean(all_mapes)) if all_mapes else float("nan")
-        self._mape = avg_mape
+        if self._mape is None:
+            self._mape = avg_mape
         return {"mape": avg_mape, "n_splits": n_splits}
 
-    # ------------------------------------------------------------------
-    # 저장 / 로딩
-    # ------------------------------------------------------------------
-
-    def save(self, path: str, version: int) -> None:
+    def save(self, path: str, version: int, df: pd.DataFrame | None = None) -> None:
         """모델 가중치 + 스케일러를 저장.
 
         Args:
             path: 저장 루트 경로 (예: edupulse/model/saved/lstm)
             version: 버전 번호
+            df: 학습 DataFrame (메타데이터 생성용, None이면 메타데이터 생략)
         """
         import joblib
 
@@ -638,6 +635,39 @@ class LSTMForecaster(BaseForecaster):
             },
             save_dir / "scalers.joblib",
         )
+
+        if df is not None:
+            from datetime import datetime, timezone
+
+            data_info = _extract_data_info(df)
+            metadata = ModelMetadata(
+                model_name="lstm",
+                version=version,
+                trained_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                data_rows=data_info["data_rows"],
+                data_date_range=data_info["data_date_range"],
+                feature_columns=[c for c in FEATURE_COLUMNS if c in df.columns],
+                hyperparameters={
+                    "sequence_length": SEQUENCE_LENGTH,
+                    "hidden_size": HIDDEN_SIZE,
+                    "num_layers": NUM_LAYERS,
+                    "dropout": DROPOUT,
+                    "batch_size": BATCH_SIZE,
+                    "input_size": INPUT_SIZE,
+                    "patience": PATIENCE,
+                    "scheduler_factor": SCHEDULER_FACTOR,
+                    "scheduler_patience": SCHEDULER_PATIENCE,
+                    "min_lr": MIN_LR,
+                    "val_ratio": VAL_RATIO,
+                },
+                mape=self._mape,
+                fields=data_info["fields"],
+                package_versions={
+                    "torch": _get_package_version("torch"),
+                    "scikit-learn": _get_package_version("scikit-learn"),
+                },
+            )
+            save_metadata(path, version, metadata)
 
     def load(self, path: str, version: int) -> None:
         """저장된 가중치와 스케일러 로딩.
@@ -660,6 +690,9 @@ class LSTMForecaster(BaseForecaster):
             raise FileNotFoundError(f"스케일러 파일을 찾을 수 없습니다: {scalers_path}")
 
         device = get_device()
+
+        _check_feature_compatibility(path, version, FEATURE_COLUMNS)
+
         self._model = self._make_model().to(device)
         self._model.load_state_dict(
             torch.load(model_pt, map_location=device)

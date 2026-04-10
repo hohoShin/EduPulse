@@ -24,7 +24,7 @@ def clean_data(df: pd.DataFrame, target_col: str = "enrollment_count") -> pd.Dat
     # 결측치: linear interpolation
     numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
     if numeric_cols:
-        df[numeric_cols] = df[numeric_cols].interpolate(method="linear", limit_direction="both")
+        df[numeric_cols] = df[numeric_cols].interpolate(method="linear", limit_direction="forward")
 
     # 이상치: IQR 방식으로 clip (target_col 존재 시)
     if target_col in df.columns:

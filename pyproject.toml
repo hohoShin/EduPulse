@@ -15,6 +15,9 @@ include = ["edupulse*"]
 testpaths = ["tests"]
 pythonpath = ["."]
 
-[tool.black]
+[tool.ruff]
 line-length = 88
-target-version = ["py311"]
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]

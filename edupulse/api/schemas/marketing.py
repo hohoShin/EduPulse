@@ -1,5 +1,6 @@
 """마케팅 타이밍 API 요청/응답 스키마."""
 from datetime import date
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -18,3 +19,15 @@ class MarketingResponse(BaseModel):
     ad_launch_weeks_before: int
     earlybird_duration_days: int
     discount_rate: float
+
+
+class LeadConversionRequest(BaseModel):
+    field: Literal["coding", "security", "game", "art"]
+
+
+class LeadConversionResponse(BaseModel):
+    field: str
+    estimated_conversions: int
+    conversion_rate_trend: list[float]
+    consultation_count_trend: list[float]
+    recommendations: list[str]

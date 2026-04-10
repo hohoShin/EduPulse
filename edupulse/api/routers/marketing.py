@@ -1,7 +1,13 @@
 """마케팅 타이밍 API 라우터 (rule-based MVP)."""
 from fastapi import APIRouter
 
-from edupulse.api.schemas.marketing import MarketingRequest, MarketingResponse
+from edupulse.api.schemas.marketing import (
+    LeadConversionRequest,
+    LeadConversionResponse,
+    MarketingRequest,
+    MarketingResponse,
+)
+from edupulse.api.services import marketing_service
 from edupulse.constants import DemandTier
 
 router = APIRouter()
@@ -26,3 +32,14 @@ def suggest_marketing_timing(request: MarketingRequest):
         earlybird_duration_days=rule["earlybird_days"],
         discount_rate=rule["discount_rate"],
     )
+
+
+@router.post("/marketing/lead-conversion", response_model=LeadConversionResponse)
+def predict_lead_conversion(request: LeadConversionRequest) -> LeadConversionResponse:
+    """잠재 수강생 전환 예측.
+
+    상담 로그와 웹 로그를 분석하여 분야별 예상 전환 수강생 수,
+    전환율 추세, 상담 건수 추세, 마케팅 권고안을 반환한다.
+    """
+    result = marketing_service.predict_lead_conversion(field=request.field)
+    return LeadConversionResponse(field=request.field, **result)

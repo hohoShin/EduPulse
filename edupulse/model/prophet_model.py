@@ -1,4 +1,5 @@
 """Prophet 수요 예측 모델 래퍼. 분야별 개별 모델 학습."""
+import logging
 import os
 from pathlib import Path
 
@@ -7,8 +8,19 @@ import numpy as np
 import pandas as pd
 from sklearn.model_selection import TimeSeriesSplit
 
+logger = logging.getLogger(__name__)
+
 from edupulse.constants import classify_demand
-from edupulse.model.base import BaseForecaster, PredictionResult
+from edupulse.model.base import (
+    BaseForecaster,
+    ModelMetadata,
+    PredictionResult,
+    _extract_data_info,
+    _get_package_version,
+    save_metadata,
+    validate_feature_columns,
+    warn_feature_mismatch,
+)
 
 # Prophet은 선택적 의존성 — 미설치 환경(torch-only)에서도 임포트 안전
 try:
@@ -61,10 +73,7 @@ class ProphetForecaster(BaseForecaster):
         self._field_models: dict[str, "Prophet"] = {}
         self._mape: float | None = None
         self._regressors: list[str] = []
-
-    # ------------------------------------------------------------------
-    # 내부 헬퍼
-    # ------------------------------------------------------------------
+        self._field_regressors: dict[str, list[str]] = {}
 
     def _to_prophet_df(self, df: pd.DataFrame) -> pd.DataFrame:
         """DataFrame을 Prophet 형식(ds, y, regressors)으로 변환.
@@ -79,9 +88,9 @@ class ProphetForecaster(BaseForecaster):
         prophet_df["ds"] = pd.to_datetime(df[DATE_COLUMN])
         prophet_df["y"] = df[TARGET_COLUMN].astype(float)
 
-        for col in REGRESSOR_COLUMNS:
-            if col in df.columns:
-                prophet_df[col] = df[col].fillna(0).astype(float)
+        available_regs = validate_feature_columns(REGRESSOR_COLUMNS, df, "Prophet.to_df")
+        for col in available_regs:
+            prophet_df[col] = df[col].fillna(0).astype(float)
 
         return prophet_df
 
@@ -104,10 +113,6 @@ class ProphetForecaster(BaseForecaster):
             model.add_regressor(reg)
         return model
 
-    # ------------------------------------------------------------------
-    # BaseForecaster 구현
-    # ------------------------------------------------------------------
-
     def train(self, df: pd.DataFrame) -> None:
         """Prophet 모델 학습. field 컬럼이 있으면 분야별 개별 학습.
 
@@ -115,19 +120,22 @@ class ProphetForecaster(BaseForecaster):
             df: date, enrollment_count (+ 선택적 search_volume, job_count) 컬럼 포함 DataFrame
         """
         self._field_models = {}
+        self._field_regressors = {}
 
         if "field" in df.columns and df["field"].nunique() > 1:
             for field in df["field"].unique():
                 field_df = df[df["field"] == field].sort_values(DATE_COLUMN).reset_index(drop=True)
                 prophet_df = self._to_prophet_df(field_df)
-                self._regressors = [c for c in REGRESSOR_COLUMNS if c in prophet_df.columns]
-                model = self._build_model(self._regressors)
+                regressors = validate_feature_columns(REGRESSOR_COLUMNS, prophet_df, "Prophet.train")
+                self._field_regressors[field] = regressors
+                model = self._build_model(regressors)
                 model.fit(prophet_df)
                 self._field_models[field] = model
             self._model = next(iter(self._field_models.values()))
+            self._regressors = sorted(set().union(*self._field_regressors.values()))
         else:
             prophet_df = self._to_prophet_df(df)
-            self._regressors = [c for c in REGRESSOR_COLUMNS if c in prophet_df.columns]
+            self._regressors = validate_feature_columns(REGRESSOR_COLUMNS, prophet_df, "Prophet.train")
             self._model = self._build_model(self._regressors)
             self._model.fit(prophet_df)
 
@@ -140,23 +148,28 @@ class ProphetForecaster(BaseForecaster):
         Returns:
             PredictionResult 인스턴스
         """
-        # 분야별 모델 선택
         model = self._model
+        regressors = self._regressors
         if self._field_models and "field" in features.columns:
             field = features["field"].iloc[0]
+            if field not in self._field_models:
+                logger.warning(
+                    "Prophet: 미학습 분야 '%s' — 첫 번째 분야 모델로 대체 예측합니다. "
+                    "정확도가 낮을 수 있습니다. 학습된 분야: %s",
+                    field, list(self._field_models.keys()),
+                )
             model = self._field_models.get(field, self._model)
+            regressors = self._field_regressors.get(field, self._regressors)
 
         if model is None:
             raise RuntimeError("모델이 학습되지 않았습니다. train() 또는 load()를 먼저 호출하세요.")
 
-        # ds 컬럼 구성
         if DATE_COLUMN in features.columns:
             future = pd.DataFrame({"ds": pd.to_datetime(features[DATE_COLUMN])})
         else:
             future = pd.DataFrame({"ds": [pd.Timestamp.today().normalize()]})
 
-        # 회귀자 추가
-        for reg in self._regressors:
+        for reg in regressors:
             if reg in features.columns:
                 future[reg] = features[reg].fillna(0).values[: len(future)]
             else:
@@ -190,7 +203,6 @@ class ProphetForecaster(BaseForecaster):
         Returns:
             {'mape': float, 'n_splits': int}
         """
-        # 분야별 분리 평가
         if "field" in df.columns and df["field"].nunique() > 1:
             return self._evaluate_per_field(df, n_splits)
 
@@ -199,7 +211,7 @@ class ProphetForecaster(BaseForecaster):
     def _evaluate_single_series(self, df: pd.DataFrame, n_splits: int) -> dict:
         """단일 시계열 평가."""
         prophet_df = self._to_prophet_df(df)
-        regressors = [c for c in REGRESSOR_COLUMNS if c in prophet_df.columns]
+        regressors = validate_feature_columns(REGRESSOR_COLUMNS, prophet_df, "Prophet.evaluate")
 
         tscv = TimeSeriesSplit(n_splits=n_splits)
         indices = np.arange(len(prophet_df))
@@ -226,7 +238,8 @@ class ProphetForecaster(BaseForecaster):
                 mapes.append(fold_mape)
 
         avg_mape = float(np.mean(mapes)) if mapes else float("nan")
-        self._mape = avg_mape
+        if self._mape is None:
+            self._mape = avg_mape
         return {"mape": avg_mape, "n_splits": n_splits}
 
     def _evaluate_per_field(self, df: pd.DataFrame, n_splits: int) -> dict:
@@ -236,7 +249,7 @@ class ProphetForecaster(BaseForecaster):
         for field in df["field"].unique():
             field_df = df[df["field"] == field].sort_values(DATE_COLUMN).reset_index(drop=True)
             prophet_df = self._to_prophet_df(field_df)
-            regressors = [c for c in REGRESSOR_COLUMNS if c in prophet_df.columns]
+            regressors = validate_feature_columns(REGRESSOR_COLUMNS, prophet_df, "Prophet.evaluate")
 
             tscv = TimeSeriesSplit(n_splits=n_splits)
             indices = np.arange(len(prophet_df))
@@ -262,19 +275,17 @@ class ProphetForecaster(BaseForecaster):
                     all_mapes.append(fold_mape)
 
         avg_mape = float(np.mean(all_mapes)) if all_mapes else float("nan")
-        self._mape = avg_mape
+        if self._mape is None:
+            self._mape = avg_mape
         return {"mape": avg_mape, "n_splits": n_splits}
 
-    # ------------------------------------------------------------------
-    # 저장 / 로딩
-    # ------------------------------------------------------------------
-
-    def save(self, path: str, version: int) -> None:
+    def save(self, path: str, version: int, df: pd.DataFrame | None = None) -> None:
         """모델을 joblib으로 직렬화 저장.
 
         Args:
             path: 저장 루트 경로 (예: edupulse/model/saved/prophet)
             version: 버전 번호
+            df: 학습 DataFrame (메타데이터 생성용, None이면 메타데이터 생략)
         """
         if self._model is None and not self._field_models:
             raise RuntimeError("저장할 모델이 없습니다. train()을 먼저 호출하세요.")
@@ -287,6 +298,7 @@ class ProphetForecaster(BaseForecaster):
                 "field_models": self._field_models,
                 "mape": self._mape,
                 "regressors": self._regressors,
+                "field_regressors": self._field_regressors,
                 "seasonality_mode": self._seasonality_mode,
                 "yearly_seasonality": self._yearly_seasonality,
                 "weekly_seasonality": self._weekly_seasonality,
@@ -294,6 +306,32 @@ class ProphetForecaster(BaseForecaster):
             },
             save_dir / "model.joblib",
         )
+
+        if df is not None:
+            from datetime import datetime, timezone
+
+            data_info = _extract_data_info(df)
+            metadata = ModelMetadata(
+                model_name="prophet",
+                version=version,
+                trained_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                data_rows=data_info["data_rows"],
+                data_date_range=data_info["data_date_range"],
+                feature_columns=[DATE_COLUMN, TARGET_COLUMN] + self._regressors,
+                hyperparameters={
+                    "seasonality_mode": self._seasonality_mode,
+                    "yearly_seasonality": self._yearly_seasonality,
+                    "weekly_seasonality": self._weekly_seasonality,
+                    "changepoint_prior_scale": self._changepoint_prior_scale,
+                    "regressors": self._regressors,
+                },
+                mape=self._mape,
+                fields=data_info["fields"],
+                package_versions={
+                    "prophet": _get_package_version("prophet"),
+                },
+            )
+            save_metadata(path, version, metadata)
 
     def load(self, path: str, version: int) -> None:
         """저장된 모델을 joblib으로 로딩.
@@ -311,7 +349,9 @@ class ProphetForecaster(BaseForecaster):
         self._field_models = data.get("field_models", {})
         self._mape = data.get("mape")
         self._regressors = data.get("regressors", [])
+        self._field_regressors = data.get("field_regressors", {})
         self._seasonality_mode = data.get("seasonality_mode", "multiplicative")
         self._yearly_seasonality = data.get("yearly_seasonality", True)
         self._weekly_seasonality = data.get("weekly_seasonality", False)
         self._changepoint_prior_scale = data.get("changepoint_prior_scale", 0.15)
+        warn_feature_mismatch(path, version, [DATE_COLUMN, TARGET_COLUMN] + REGRESSOR_COLUMNS)
