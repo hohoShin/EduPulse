@@ -164,6 +164,7 @@ class EnsembleForecaster(BaseForecaster):
 
         confidence_lower = max(0.0, round(float(np.average(lowers, weights=weights)), 1))
         confidence_upper = round(float(np.average(uppers, weights=weights)), 1)
+        confidence_upper = max(confidence_upper, confidence_lower)
 
         avg_mape = float(np.mean(mapes)) if mapes else None
         model_used = f"ensemble({'+'.join(used_names)})"

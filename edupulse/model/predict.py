@@ -13,6 +13,7 @@ import numpy as np
 import pandas as pd
 
 from edupulse.constants import (
+    PROJECT_ROOT,
     ENROLLMENT_PATH as _ENROLLMENT_PATH,
     SEARCH_TRENDS_PATH as _SEARCH_TRENDS_PATH,
     JOB_POSTINGS_PATH as _JOB_POSTINGS_PATH,
@@ -34,14 +35,22 @@ MODEL_VERSION = int(os.environ.get("MODEL_VERSION", 1))
 _model_cache: dict[str, BaseForecaster] = {}
 _model_mtime: dict[str, float] = {}
 _cache_lock = threading.Lock()
+_loading_locks: dict[str, threading.Lock] = {}
 
 _data_cache: dict[str, pd.DataFrame] = {}
 _data_cache_lock = threading.Lock()
 
+
+def _get_loading_lock(key: str) -> threading.Lock:
+    with _cache_lock:
+        if key not in _loading_locks:
+            _loading_locks[key] = threading.Lock()
+        return _loading_locks[key]
+
 _MODEL_PATHS = {
-    "xgboost": "edupulse/model/saved/xgboost",
-    "prophet": "edupulse/model/saved/prophet",
-    "lstm": "edupulse/model/saved/lstm",
+    "xgboost": str(PROJECT_ROOT / "edupulse/model/saved/xgboost"),
+    "prophet": str(PROJECT_ROOT / "edupulse/model/saved/prophet"),
+    "lstm": str(PROJECT_ROOT / "edupulse/model/saved/lstm"),
 }
 
 
@@ -91,14 +100,19 @@ def load_model(model_name: str, version: int = MODEL_VERSION) -> BaseForecaster:
             logger.info("모델 파일 갱신 감지: %s (리로딩)", key)
             del _model_cache[key]
 
-    # 잠금 바깥에서 I/O 수행 (동시 로딩 허용)
-    model = _do_load_model(model_name, version)
-    current_mtime = _get_model_mtime(model_name, version)
-
-    with _cache_lock:
-        if key not in _model_cache:
-            _model_cache[key] = model
-            _model_mtime[key] = current_mtime
+    # 퍼-모델 잠금으로 동시 로딩 경쟁 방지
+    loading_lock = _get_loading_lock(key)
+    with loading_lock:
+        # 다른 스레드가 먼저 로딩을 완료했을 수 있으므로 캐시 재확인
+        with _cache_lock:
+            if key in _model_cache:
+                return _model_cache[key]
+        model = _do_load_model(model_name, version)
+        current_mtime = _get_model_mtime(model_name, version)
+        with _cache_lock:
+            if key not in _model_cache:
+                _model_cache[key] = model
+                _model_mtime[key] = current_mtime
         return _model_cache[key]
 
 
@@ -108,14 +122,14 @@ def _do_load_model(model_name: str, version: int) -> BaseForecaster:
         from edupulse.model.xgboost_model import XGBoostForecaster
 
         model: BaseForecaster = XGBoostForecaster()
-        model.load("edupulse/model/saved/xgboost", version=version)
+        model.load(_MODEL_PATHS["xgboost"], version=version)
 
     elif model_name == "prophet":
         try:
             from edupulse.model.prophet_model import ProphetForecaster
 
             model = ProphetForecaster()
-            model.load("edupulse/model/saved/prophet", version=version)
+            model.load(_MODEL_PATHS["prophet"], version=version)
         except ImportError as exc:
             raise ImportError("Prophet 미설치. pip install prophet") from exc
 
@@ -124,7 +138,7 @@ def _do_load_model(model_name: str, version: int) -> BaseForecaster:
             from edupulse.model.lstm_model import LSTMForecaster
 
             model = LSTMForecaster()
-            model.load("edupulse/model/saved/lstm", version=version)
+            model.load(_MODEL_PATHS["lstm"], version=version)
         except ImportError as exc:
             raise ImportError("PyTorch 미설치. pip install torch") from exc
 
@@ -156,7 +170,7 @@ def _load_ensemble(version: int = MODEL_VERSION) -> "BaseForecaster":
         from edupulse.model.xgboost_model import XGBoostForecaster
 
         xgb = XGBoostForecaster()
-        xgb.load("edupulse/model/saved/xgboost", version=version)
+        xgb.load(_MODEL_PATHS["xgboost"], version=version)
         ensemble.add_model("xgboost", xgb)
     except Exception as exc:
         logger.warning("앙상블: XGBoost 로딩 실패 — %s", exc)
@@ -165,7 +179,7 @@ def _load_ensemble(version: int = MODEL_VERSION) -> "BaseForecaster":
         from edupulse.model.prophet_model import ProphetForecaster
 
         prophet = ProphetForecaster()
-        prophet.load("edupulse/model/saved/prophet", version=version)
+        prophet.load(_MODEL_PATHS["prophet"], version=version)
         ensemble.add_model("prophet", prophet)
     except Exception as exc:
         logger.warning("앙상블: Prophet 로딩 실패 — %s", exc)
@@ -174,7 +188,7 @@ def _load_ensemble(version: int = MODEL_VERSION) -> "BaseForecaster":
         from edupulse.model.lstm_model import LSTMForecaster
 
         lstm = LSTMForecaster()
-        lstm.load("edupulse/model/saved/lstm", version=version)
+        lstm.load(_MODEL_PATHS["lstm"], version=version)
         ensemble.add_model("lstm", lstm)
     except Exception as exc:
         logger.warning("앙상블: LSTM 로딩 실패 — %s", exc)
@@ -298,9 +312,10 @@ def build_features(course_name: str, start_date: str, field: str) -> pd.DataFram
 
     # --- 6) consultation_count (consultation_logs.csv) ---
     consultation_count = 0.0
-    if os.path.exists(_CONSULTATION_PATH):
+    consult_raw = load_csv_cached(_CONSULTATION_PATH)
+    if consult_raw is not None:
         try:
-            consult_df = pd.read_csv(_CONSULTATION_PATH)
+            consult_df = consult_raw.copy()
             consult_df["date"] = pd.to_datetime(consult_df["date"])
             field_consult = consult_df[consult_df["field"] == field].sort_values("date")
             prior_consult = field_consult[field_consult["date"] < target_date]
@@ -311,9 +326,10 @@ def build_features(course_name: str, start_date: str, field: str) -> pd.DataFram
 
     # --- 7) page_views (web_logs.csv) ---
     page_views = 0.0
-    if os.path.exists(_WEB_LOGS_PATH):
+    web_raw = load_csv_cached(_WEB_LOGS_PATH)
+    if web_raw is not None:
         try:
-            web_df = pd.read_csv(_WEB_LOGS_PATH)
+            web_df = web_raw.copy()
             web_df["date"] = pd.to_datetime(web_df["date"])
             field_web = web_df[web_df["field"] == field].sort_values("date")
             prior_web = field_web[field_web["date"] < target_date]
@@ -325,9 +341,10 @@ def build_features(course_name: str, start_date: str, field: str) -> pd.DataFram
     # --- 9) has_cert_exam, weeks_to_exam (cert_exam_schedule.csv) ---
     has_cert_exam = 0
     weeks_to_exam = 0.0
-    if os.path.exists(_CERT_EXAM_PATH):
+    cert_raw = load_csv_cached(_CERT_EXAM_PATH)
+    if cert_raw is not None:
         try:
-            cert_df = pd.read_csv(_CERT_EXAM_PATH)
+            cert_df = cert_raw.copy()
             cert_df["date"] = pd.to_datetime(cert_df["date"])
             field_cert = cert_df[cert_df["field"] == field].sort_values("date")
             prior_cert = field_cert[field_cert["date"] < target_date]
@@ -340,9 +357,10 @@ def build_features(course_name: str, start_date: str, field: str) -> pd.DataFram
     # --- 10) competitor_openings, competitor_avg_price (competitor_data.csv) ---
     competitor_openings = 0.0
     competitor_avg_price = 0.0
-    if os.path.exists(_COMPETITOR_PATH):
+    comp_raw = load_csv_cached(_COMPETITOR_PATH)
+    if comp_raw is not None:
         try:
-            comp_df = pd.read_csv(_COMPETITOR_PATH)
+            comp_df = comp_raw.copy()
             comp_df["date"] = pd.to_datetime(comp_df["date"])
             field_comp = comp_df[comp_df["field"] == field].sort_values("date")
             prior_comp = field_comp[field_comp["date"] < target_date]
@@ -356,9 +374,10 @@ def build_features(course_name: str, start_date: str, field: str) -> pd.DataFram
     is_vacation = 0
     is_exam_season = 0
     is_semester_start = 0
-    if os.path.exists(_SEASONAL_PATH):
+    seasonal_raw = load_csv_cached(_SEASONAL_PATH)
+    if seasonal_raw is not None:
         try:
-            seasonal_df = pd.read_csv(_SEASONAL_PATH)
+            seasonal_df = seasonal_raw.copy()
             seasonal_df["date"] = pd.to_datetime(seasonal_df["date"])
             prior_seasonal = seasonal_df[seasonal_df["date"] < target_date].sort_values("date")
             if len(prior_seasonal) >= 1:

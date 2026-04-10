@@ -1,5 +1,8 @@
 """프로젝트 전역 상수. 모든 모듈이 여기서 import."""
 from enum import Enum
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
 class DemandTier(str, Enum):
@@ -14,15 +17,15 @@ DEMAND_THRESHOLDS = {"high": 6, "mid": 3}
 FIELD_ENCODING = {"art": 0, "coding": 1, "game": 2, "security": 3}
 
 # CSV 데이터 파일 경로 (단일 진실 소스)
-ENROLLMENT_PATH = "edupulse/data/raw/internal/enrollment_history.csv"
-SEARCH_TRENDS_PATH = "edupulse/data/raw/external/search_trends.csv"
-JOB_POSTINGS_PATH = "edupulse/data/raw/external/job_postings.csv"
-CONSULTATION_PATH = "edupulse/data/raw/internal/consultation_logs.csv"
-STUDENT_PROFILES_PATH = "edupulse/data/raw/internal/student_profiles.csv"
-WEB_LOGS_PATH = "edupulse/data/raw/internal/web_logs.csv"
-CERT_EXAM_PATH = "edupulse/data/raw/external/cert_exam_schedule.csv"
-COMPETITOR_PATH = "edupulse/data/raw/external/competitor_data.csv"
-SEASONAL_PATH = "edupulse/data/raw/external/seasonal_events.csv"
+ENROLLMENT_PATH = str(PROJECT_ROOT / "edupulse/data/raw/internal/enrollment_history.csv")
+SEARCH_TRENDS_PATH = str(PROJECT_ROOT / "edupulse/data/raw/external/search_trends.csv")
+JOB_POSTINGS_PATH = str(PROJECT_ROOT / "edupulse/data/raw/external/job_postings.csv")
+CONSULTATION_PATH = str(PROJECT_ROOT / "edupulse/data/raw/internal/consultation_logs.csv")
+STUDENT_PROFILES_PATH = str(PROJECT_ROOT / "edupulse/data/raw/internal/student_profiles.csv")
+WEB_LOGS_PATH = str(PROJECT_ROOT / "edupulse/data/raw/internal/web_logs.csv")
+CERT_EXAM_PATH = str(PROJECT_ROOT / "edupulse/data/raw/external/cert_exam_schedule.csv")
+COMPETITOR_PATH = str(PROJECT_ROOT / "edupulse/data/raw/external/competitor_data.csv")
+SEASONAL_PATH = str(PROJECT_ROOT / "edupulse/data/raw/external/seasonal_events.csv")
 
 CSV_PATHS = {
     "enrollment": ENROLLMENT_PATH,

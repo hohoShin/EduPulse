@@ -10,3 +10,11 @@ edupulse/data/raw/
 .omc/
 docs/
 notebooks/
+.env
+.env.*
+edupulse/data/processed/
+edupulse/data/warehouse/
+frontend/node_modules/
+tests/
+.claude/
+scripts/

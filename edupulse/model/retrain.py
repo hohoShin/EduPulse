@@ -9,11 +9,13 @@ Usage:
 import argparse
 import sys
 
+from edupulse.constants import PROJECT_ROOT
+
 # 모델 이름 → 저장 경로 매핑
 _MODEL_SAVE_DIRS = {
-    "xgboost": "edupulse/model/saved/xgboost",
-    "prophet": "edupulse/model/saved/prophet",
-    "lstm": "edupulse/model/saved/lstm",
+    "xgboost": str(PROJECT_ROOT / "edupulse/model/saved/xgboost"),
+    "prophet": str(PROJECT_ROOT / "edupulse/model/saved/prophet"),
+    "lstm": str(PROJECT_ROOT / "edupulse/model/saved/lstm"),
 }
 
 

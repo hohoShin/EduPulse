@@ -695,7 +695,7 @@ class LSTMForecaster(BaseForecaster):
 
         self._model = self._make_model().to(device)
         self._model.load_state_dict(
-            torch.load(model_pt, map_location=device)
+            torch.load(model_pt, map_location=device, weights_only=True)
         )
         self._model.eval()
 

@@ -2,10 +2,14 @@
 
 모델 로딩은 predict.load_model()에 위임하여 이중 캐시 문제를 방지한다.
 """
+import logging
+
 from fastapi import HTTPException
 
 from edupulse.database import SessionLocal
 from edupulse.model.predict import MODEL_VERSION, _model_cache, load_model as _load_model
+
+logger = logging.getLogger(__name__)
 
 
 def get_loaded_model_names() -> list[str]:
@@ -15,11 +19,11 @@ def get_loaded_model_names() -> list[str]:
 
 def load_models() -> None:
     """서버 시작 시 모델 프리로딩. predict.load_model() 캐시에 등록."""
-    for name in ("xgboost", "prophet", "lstm", "ensemble"):
+    for name in ("xgboost", "prophet", "ensemble"):
         try:
             _load_model(name, version=MODEL_VERSION)
-        except Exception:
-            pass  # 미설치/미학습 모델은 건너뜀
+        except Exception as e:
+            logger.warning("모델 프리로딩 실패 (%s): %s", name, e)
 
 
 def get_model(name: str = "ensemble"):

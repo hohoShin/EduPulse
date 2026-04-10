@@ -17,7 +17,6 @@ class Settings(BaseSettings):
     api_port: int = 8000
 
     # Model
-    model_dir: str = "edupulse/model/saved"
     model_version: int = 1
 
     # Collection

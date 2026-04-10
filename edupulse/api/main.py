@@ -3,13 +3,17 @@
 실행:
     uvicorn edupulse.api.main:app --reload
 """
+import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 
 from edupulse.api.dependencies import load_models
 from edupulse.api.middleware import setup_middleware
 from edupulse.api.routers import health, demand, schedule, marketing, simulation
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -27,6 +31,13 @@ app = FastAPI(
 )
 
 setup_middleware(app)
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.error("Unhandled exception: %s", exc, exc_info=True)
+    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
+
 
 app.include_router(health.router, prefix="/api/v1", tags=["health"])
 app.include_router(demand.router, prefix="/api/v1", tags=["demand"])
