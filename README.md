@@ -46,7 +46,7 @@
 - **용도:** 모델 아키텍처, 전처리 파이프라인, API 통합의 정상 동작 검증
 - **한계:** MAPE 수치는 시스템 검증 목적이며, 실전 예측 성능과 다를 수 있음
 - **전환:** 실제 데이터 확보 시 CSV 파일 교체만으로 전환 가능 (파이프라인 재사용)
-- **상세 문서:** [`docs/합성_데이터_생성_가이드.md`](docs/합성_데이터_생성_가이드.md)
+- **상세 문서:** [`docs/data-and-model.md`](docs/data-and-model.md)
 
 ---
 
@@ -137,27 +137,32 @@ Droplet 사양 한계로 LSTM은 서버 자동 재학습에서 제외합니다.
 scp model/saved/lstm/model.pt user@your-droplet-ip:/app/model/saved/lstm/
 ```
 
-## 🖥️ 프론트엔드 (Phase A)
+## 🖥️ 프론트엔드 (Phase D 완료)
 
-현재 프론트엔드는 **Phase A: Mock-First Scaffold** 단계에 있습니다. 백엔드 서버 없이도 핵심 기능을 시뮬레이션하고 UI를 확인할 수 있습니다.
+프론트엔드는 **Phase D: 프론트엔드-백엔드 실시간 연동**이 완료된 상태입니다. 5개 페이지 전체가 FastAPI 백엔드와 실시간 연동됩니다.
 
 ### 주요 기능
-- **Dashboard**: 분야별 수요 예측 트렌드 시각화 (Curated Demo)
-- **Simulator**: 신규 강좌 정보 입력 시 수요 등급 및 대응 전략 시뮬레이션
-- **Adapter Pattern**: Mock 데이터와 실데이터를 유연하게 전환할 수 있는 구조
+- **Dashboard**: 운영 현황 요약 (수요 예측 + 경쟁 동향 + 알림)
+- **Simulator**: 신규 강좌 수요 + 운영 + 마케팅 통합 시뮬레이션
+- **Marketing**: 잠재 수강생 전환 예측 + 등급별 광고 타이밍
+- **Operations**: 폐강 위험 평가 + 강사/강의실 배정
+- **Market**: 인구통계 + 경쟁사 동향 + 최적 개강일
+- **Adapter Pattern**: Mock/Hybrid/Real 어댑터 전환 (환경변수 기반)
 
 ### 로컬 실행 방법
 ```bash
-cd frontend
-npm install
-npm run dev
+# Mock 모드 (백엔드 불필요)
+cd frontend && npm install && npm run dev
+
+# Real 모드 (백엔드 필요)
+# 터미널 1: .venv/bin/python -m uvicorn edupulse.api.main:app --reload
+# 터미널 2: cd frontend && VITE_ADAPTER=real npm run dev
 ```
 - 접속 주소: `http://localhost:5173/`
 
-### 상세 개발 단계
-- 현재 상태: Phase A 완료 (Mock 기반)
-- 다음 단계: Phase B (Contract Hardening)
-- 상세 로드맵: [`docs/ai_plans/edupulse-frontend-phases.md`](docs/ai_plans/edupulse-frontend-phases.md)
+### 상세 문서
+- 연동 가이드: [`docs/frontend-integration.md`](docs/frontend-integration.md)
+- Phase 로드맵: [`docs/ai_plans/edupulse-frontend-phases.md`](docs/ai_plans/edupulse-frontend-phases.md)
 
 ---
 
@@ -244,16 +249,24 @@ edupulse/                              # 프로젝트 루트
 │   ├── test_preprocessing.py          # 전처리 테스트
 │   ├── test_model.py                  # 모델 테스트
 │   ├── test_demand.py                 # 수요 예측 API 테스트
+│   ├── test_simulation.py             # 시뮬레이션 API 테스트
+│   ├── test_generators.py             # 합성 데이터 생성 테스트
 │   └── test_health.py                # 헬스체크 테스트
 │
-├── frontend/                      # 대시보드 프론트엔드 (Phase A)
+├── frontend/                      # 대시보드 프론트엔드 (Phase D)
 │   ├── src/
 │   │   ├── api/
-│   │   │   ├── adapters/          # Mock/Real 데이터 어댑터
-│   │   │   ├── viewModels.js      # UI용 데이터 변환 로직
+│   │   │   ├── adapters/          # Mock/Hybrid/Real 어댑터
+│   │   │   ├── client.js          # fetch 래퍼 (apiGet, apiPost)
+│   │   │   ├── transformers.js    # 백엔드 응답 변환
+│   │   │   ├── errors.js          # HTTP 에러 한글화
+│   │   │   └── viewModels.js      # UI용 데이터 변환 로직
 │   │   ├── pages/
-│   │   │   ├── Dashboard.jsx      # 메인 예측 대시보드 (Demo)
-│   │   │   └── Simulator.jsx      # 수요 시뮬레이터 (Mock-First)
+│   │   │   ├── Dashboard.jsx      # 운영 현황 대시보드
+│   │   │   ├── Simulator.jsx      # 수요 시뮬레이터
+│   │   │   ├── Marketing.jsx      # 마케팅 분석
+│   │   │   ├── Operations.jsx     # 운영 관리
+│   │   │   └── Market.jsx         # 시장 분석
 │   │   └── components/
 │   │       ├── DemandChart.jsx    # 수요 예측 시각화
 │   │       ├── AlertPanel.jsx     # 폐강 리스크·광고 알림
