@@ -54,5 +54,40 @@ export async function getSystemStatus() {
   return adapter.getSystemStatus();
 }
 
+export async function getLeadConversion(input) {
+  const adapter = getAdapter();
+  return adapter.getLeadConversion(input);
+}
+
+export async function getMarketingTiming(input) {
+  const adapter = getAdapter();
+  return adapter.getMarketingTiming(input);
+}
+
+export async function getClosureRisk(input) {
+  const adapter = getAdapter();
+  return adapter.getClosureRisk(input);
+}
+
+export async function getScheduleSuggest(input) {
+  const adapter = getAdapter();
+  return adapter.getScheduleSuggest(input);
+}
+
+export async function getDemographics(input) {
+  const adapter = getAdapter();
+  return adapter.getDemographics(input);
+}
+
+export async function getCompetitors(input) {
+  const adapter = getAdapter();
+  return adapter.getCompetitors(input);
+}
+
+export async function getOptimalStart(input) {
+  const adapter = getAdapter();
+  return adapter.getOptimalStart(input);
+}
+
 // Export both adapters for testing/debugging
 export { mockAdapter, realAdapter };
