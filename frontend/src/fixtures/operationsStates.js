@@ -3,6 +3,9 @@ import { createUIState } from '../api/viewModels.js';
 export const closureRiskData = {
   risk_score: 0.72,
   risk_level: "high",
+  risk_trend: [0.45, 0.50, 0.55, 0.60, 0.65, 0.68, 0.70, 0.72],
+  predicted_enrollment: 3,
+  min_enrollment: 5,
   contributing_factors: [
     "예측 수강생 수 부족: 3명 (LOW 등급)",
     "신뢰 구간 하한(1.5명)이 최소 개강 인원(5명) 미만"

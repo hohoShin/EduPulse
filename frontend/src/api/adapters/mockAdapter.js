@@ -6,15 +6,15 @@
  */
 
 import {
-  dashboardSummarySuccess,
+  dashboardSummaryByField,
   dashboardSummaryLoading,
   dashboardSummaryEmpty,
   dashboardSummaryError,
-  demandChartSuccess,
+  demandChartByField,
   demandChartLoading,
   demandChartEmpty,
   demandChartError,
-  dashboardAlertsSuccess,
+  dashboardAlertsByField,
   dashboardAlertsLoading,
   dashboardAlertsEmpty,
   dashboardAlertsError,
@@ -47,47 +47,50 @@ import {
 
 /**
  * Get dashboard summary cards (loading, success, empty, error states available)
+ * @param {Object} options - { field: 'coding'|'security'|'game'|'art', forceState }
  * @returns {Promise<Object>} UIState with summary card data
  */
 export async function getDashboardSummary(options = {}) {
   // Simulate network delay for realism
   await new Promise(resolve => setTimeout(resolve, 100));
-  
+
   if (options.forceState === 'loading') return dashboardSummaryLoading;
   if (options.forceState === 'empty') return dashboardSummaryEmpty;
   if (options.forceState === 'error') return dashboardSummaryError;
-  
-  return dashboardSummarySuccess;
+
+  return dashboardSummaryByField(options.field || 'coding');
 }
 
 /**
  * Get demand forecast chart data (loading, success, empty, error states available)
+ * @param {Object} options - { field: 'coding'|'security'|'game'|'art', forceState }
  * @returns {Promise<Object>} UIState with chart point data
  */
 export async function getDemandChart(options = {}) {
   // Simulate network delay for realism
   await new Promise(resolve => setTimeout(resolve, 150));
-  
+
   if (options.forceState === 'loading') return demandChartLoading;
   if (options.forceState === 'empty') return demandChartEmpty;
   if (options.forceState === 'error') return demandChartError;
-  
-  return demandChartSuccess;
+
+  return demandChartByField(options.field || 'coding');
 }
 
 /**
  * Get dashboard alerts (closure risk, marketing timing, etc.)
+ * @param {Object} options - { field: 'coding'|'security'|'game'|'art', forceState }
  * @returns {Promise<Object>} UIState with alert items
  */
 export async function getDashboardAlerts(options = {}) {
   // Simulate network delay for realism
   await new Promise(resolve => setTimeout(resolve, 100));
-  
+
   if (options.forceState === 'loading') return dashboardAlertsLoading;
   if (options.forceState === 'empty') return dashboardAlertsEmpty;
   if (options.forceState === 'error') return dashboardAlertsError;
-  
-  return dashboardAlertsSuccess;
+
+  return dashboardAlertsByField(options.field || 'coding');
 }
 
 /**

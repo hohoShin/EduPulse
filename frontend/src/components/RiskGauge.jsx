@@ -21,8 +21,9 @@ const levelConfig = {
   },
 };
 
-const RiskGauge = ({ score, level, label }) => {
+const RiskGauge = ({ score, level, label, labels }) => {
   const config = levelConfig[level] || levelConfig.low;
+  const effectiveLabels = labels || { high: '위험', medium: '주의', low: '안전' };
   const percentage = Math.round((score ?? 0) * 100);
 
   return (
@@ -44,7 +45,7 @@ const RiskGauge = ({ score, level, label }) => {
                 borderRadius: '9999px',
               }}
             >
-              {config.label}
+              {effectiveLabels[level] ?? effectiveLabels.low}
             </span>
           </div>
         </div>

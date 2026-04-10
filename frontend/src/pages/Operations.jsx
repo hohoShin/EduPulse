@@ -1,7 +1,17 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import StatusPanel from '../components/StatusPanel.jsx';
 import RiskGauge from '../components/RiskGauge.jsx';
 import { getClosureRisk, getScheduleSuggest } from '../api/adapters/index.js';
+
+const TIME_SLOT_OPTIONS = [
+  '오전 (09:00-12:00)',
+  '오후 (13:00-16:00)',
+  '저녁 (18:00-21:00)',
+  '주말 오전 (10:00-13:00)',
+  '주말 오후 (14:00-17:00)',
+];
 
 const Operations = () => {
   const [formData, setFormData] = useState({ courseName: '', field: '', startDate: '' });
@@ -9,11 +19,16 @@ const Operations = () => {
   const [scheduleData, setScheduleData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [validationError, setValidationError] = useState('');
+  const [timeSlots, setTimeSlots] = useState({});
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
     if (validationError) setValidationError('');
+  };
+
+  const handleTimeSlotChange = (classIndex, value) => {
+    setTimeSlots(prev => ({ ...prev, [classIndex]: value }));
   };
 
   const handleSubmit = async (e) => {
@@ -40,6 +55,7 @@ const Operations = () => {
       ]);
       setRiskData(risk.data);
       setScheduleData(schedule.data);
+      setTimeSlots({});
     } catch {
       setValidationError('분석 중 오류가 발생했습니다. 다시 시도해주세요.');
     }
@@ -47,6 +63,11 @@ const Operations = () => {
   };
 
   const hasResults = riskData && scheduleData;
+  const isHighRisk = riskData?.risk_level === 'high';
+
+  const riskTrendData = riskData?.risk_trend
+    ? riskData.risk_trend.map((v, i) => ({ week: `${i + 1}주`, score: parseFloat((v * 100).toFixed(1)) }))
+    : [];
 
   return (
     <div>
@@ -165,6 +186,49 @@ const Operations = () => {
                   <RiskGauge score={riskData.risk_score} level={riskData.risk_level} />
                 </div>
 
+                {/* Enrollment comparison cards */}
+                {riskData.predicted_enrollment != null && riskData.min_enrollment != null && (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 'var(--space-4)', marginBottom: 'var(--space-5)' }}>
+                    <div style={{ backgroundColor: 'var(--color-background)', padding: 'var(--space-4)', borderRadius: 'var(--radius-md)', textAlign: 'center' }}>
+                      <div style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--color-text-muted)', marginBottom: 'var(--space-1)' }}>예측 수강생</div>
+                      <div style={{ fontSize: '1.75rem', fontWeight: '700', color: isHighRisk ? 'var(--color-error-text)' : 'var(--color-success-text)' }}>
+                        {riskData.predicted_enrollment}
+                        <span style={{ fontSize: '0.875rem', fontWeight: '500', color: 'var(--color-text-muted)' }}>명</span>
+                      </div>
+                    </div>
+                    <div style={{ backgroundColor: 'var(--color-background)', padding: 'var(--space-4)', borderRadius: 'var(--radius-md)', textAlign: 'center' }}>
+                      <div style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--color-text-muted)', marginBottom: 'var(--space-1)' }}>최소 개강 인원</div>
+                      <div style={{ fontSize: '1.75rem', fontWeight: '700', color: 'var(--color-text-main)' }}>
+                        {riskData.min_enrollment}
+                        <span style={{ fontSize: '0.875rem', fontWeight: '500', color: 'var(--color-text-muted)' }}>명</span>
+                      </div>
+                    </div>
+                    <div style={{ backgroundColor: 'var(--color-background)', padding: 'var(--space-4)', borderRadius: 'var(--radius-md)', textAlign: 'center' }}>
+                      <div style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--color-text-muted)', marginBottom: 'var(--space-1)' }}>부족 인원</div>
+                      <div style={{ fontSize: '1.75rem', fontWeight: '700', color: 'var(--color-error-text)' }}>
+                        {Math.max(0, riskData.min_enrollment - riskData.predicted_enrollment)}
+                        <span style={{ fontSize: '0.875rem', fontWeight: '500', color: 'var(--color-text-muted)' }}>명</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Mini risk trend chart */}
+                {riskTrendData.length > 0 && (
+                  <div style={{ marginBottom: 'var(--space-5)' }}>
+                    <h3 style={{ fontSize: '0.875rem', fontWeight: '600', color: 'var(--color-text-muted)', marginBottom: 'var(--space-3)' }}>위험도 추이</h3>
+                    <ResponsiveContainer width="100%" height={120}>
+                      <LineChart data={riskTrendData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+                        <XAxis dataKey="week" tick={{ fontSize: 11, fill: 'var(--color-text-muted)' }} />
+                        <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: 'var(--color-text-muted)' }} unit="%" width={36} />
+                        <Tooltip formatter={(v) => [`${v}%`, '위험도']} />
+                        <Line type="monotone" dataKey="score" stroke="#ef4444" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+
                 {riskData.contributing_factors?.length > 0 && (
                   <div style={{ marginBottom: 'var(--space-5)' }}>
                     <h3 style={{ fontSize: '0.875rem', fontWeight: '600', color: 'var(--color-text-muted)', marginBottom: 'var(--space-3)' }}>주요 위험 요인</h3>
@@ -177,8 +241,33 @@ const Operations = () => {
                 )}
 
                 {riskData.recommendation && (
-                  <div style={{ backgroundColor: 'var(--color-info-bg)', padding: 'var(--space-4)', borderRadius: 'var(--radius-md)' }}>
+                  <div style={{ backgroundColor: 'var(--color-info-bg)', padding: 'var(--space-4)', borderRadius: 'var(--radius-md)', marginBottom: isHighRisk ? 'var(--space-4)' : 0 }}>
                     <div style={{ fontSize: '0.875rem', color: 'var(--color-info-text)' }}>{riskData.recommendation}</div>
+                  </div>
+                )}
+
+                {/* Marketing link button when high risk */}
+                {isHighRisk && (
+                  <div style={{ display: 'flex', gap: 'var(--space-3)', marginTop: 'var(--space-2)' }}>
+                    <Link
+                      to="/marketing"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 'var(--space-2)',
+                        padding: 'var(--space-2) var(--space-4)',
+                        backgroundColor: 'var(--color-error-bg)',
+                        border: '1px solid #fca5a5',
+                        borderRadius: 'var(--radius-md)',
+                        color: 'var(--color-error-text)',
+                        fontSize: '0.875rem',
+                        fontWeight: '600',
+                        textDecoration: 'none',
+                      }}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2" /></svg>
+                      마케팅 강화 바로가기
+                    </Link>
                   </div>
                 )}
               </div>
@@ -230,19 +319,21 @@ const Operations = () => {
                       <tbody>
                         {scheduleData.assignment_plan.classes.map((cls, i) => (
                           <tr key={i}>
-                            {[cls.class_name, cls.instructor_slot, cls.time_slot, cls.classroom].map((cell, j) => (
-                              <td
-                                key={j}
-                                style={{
-                                  padding: 'var(--space-3)',
-                                  borderBottom: '1px solid var(--color-border)',
-                                  fontSize: '0.875rem',
-                                  color: 'var(--color-text-main)',
-                                }}
+                            <td style={{ padding: 'var(--space-3)', borderBottom: '1px solid var(--color-border)', fontSize: '0.875rem', color: 'var(--color-text-main)' }}>{cls.class_name}</td>
+                            <td style={{ padding: 'var(--space-3)', borderBottom: '1px solid var(--color-border)', fontSize: '0.875rem', color: 'var(--color-text-main)' }}>{cls.instructor_slot}</td>
+                            <td style={{ padding: 'var(--space-3)', borderBottom: '1px solid var(--color-border)', fontSize: '0.875rem', color: 'var(--color-text-main)' }}>
+                              <select
+                                value={timeSlots[i] !== undefined ? timeSlots[i] : cls.time_slot}
+                                onChange={(e) => handleTimeSlotChange(i, e.target.value)}
+                                className="form-control"
+                                style={{ padding: '4px 8px', fontSize: '0.875rem', minWidth: '180px' }}
                               >
-                                {cell}
-                              </td>
-                            ))}
+                                {TIME_SLOT_OPTIONS.map((opt) => (
+                                  <option key={opt} value={opt}>{opt}</option>
+                                ))}
+                              </select>
+                            </td>
+                            <td style={{ padding: 'var(--space-3)', borderBottom: '1px solid var(--color-border)', fontSize: '0.875rem', color: 'var(--color-text-main)' }}>{cls.classroom}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -250,9 +341,9 @@ const Operations = () => {
                   </div>
                 )}
 
-                {scheduleData.summary && (
+                {scheduleData.assignment_plan?.summary && (
                   <div style={{ marginTop: 'var(--space-4)', fontSize: '0.875rem', color: 'var(--color-text-muted)' }}>
-                    {scheduleData.summary}
+                    {scheduleData.assignment_plan.summary}
                   </div>
                 )}
               </div>
