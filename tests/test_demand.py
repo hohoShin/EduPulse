@@ -172,7 +172,7 @@ def test_lead_conversion(client):
     """마케팅 lead-conversion 엔드포인트가 200과 올바른 구조를 반환해야 한다."""
     response = client.post(
         "/api/v1/marketing/lead-conversion",
-        json={"field": "coding", "start_date": "2026-05-01"},
+        json={"field": "coding"},
     )
     assert response.status_code == 200, f"lead-conversion 실패: {response.text}"
     data = response.json()

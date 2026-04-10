@@ -21,24 +21,21 @@ from edupulse.model.base import (
 )
 
 FEATURE_COLUMNS = [
-    # --- Existing (10) ---
+    # --- 시계열 (5) ---
     "lag_1w", "lag_2w", "lag_4w", "lag_8w",
-    "rolling_mean_4w", "month_sin", "month_cos",
-    "search_volume", "job_count", "field_encoded",
-    # --- New: Internal data (5) ---
-    "consultation_count",
-    "conversion_rate",
-    "page_views",
-    "cart_abandon_rate",
-    "age_group_diversity",
-    # --- New: External data (7) ---
-    "has_cert_exam",
-    "weeks_to_exam",
-    "competitor_openings",
-    "competitor_avg_price",
-    "is_vacation",
-    "is_exam_season",
-    "is_semester_start",
+    "rolling_mean_4w",
+    # --- 날짜/분야 인코딩 (3) ---
+    "month_sin", "month_cos", "field_encoded",
+    # --- 외부 지표 (2) ---
+    "search_volume", "job_count",
+    # --- 내부 선행지표 (2) ---
+    "consultation_count", "page_views",
+    # --- 자격증 일정 (2) ---
+    "has_cert_exam", "weeks_to_exam",
+    # --- 경쟁사 (2) ---
+    "competitor_openings", "competitor_avg_price",
+    # --- 계절 이벤트 (3) ---
+    "is_vacation", "is_exam_season", "is_semester_start",
 ]
 TARGET_COLUMN = "enrollment_count"
 

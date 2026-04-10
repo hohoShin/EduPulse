@@ -111,16 +111,13 @@ def find_optimal_start_dates(
             except Exception as exc:
                 logger.debug("low_competition 계산 실패: %s", exc)
 
-        # 복합 점수 = enrollment*0.5 + job_score*0.3 + low_competition*0.2
-        # enrollment 정규화: 최대값 기준 상대값 (0~1 범위로 후처리)
-        composite_score = float(enrollment) * 0.5 + job_score * 0.3 + low_competition * 0.2
-
         candidates.append({
             "date": monday,
             "predicted_enrollment": enrollment,
             "demand_tier": tier,
-            "composite_score": composite_score,
             "_raw_enrollment": float(enrollment),
+            "_job_score": job_score,
+            "_low_competition": low_competition,
         })
 
     if not candidates:
@@ -129,9 +126,9 @@ def find_optimal_start_dates(
     # enrollment 정규화 (0~1): 전체 후보 중 최대 enrollment 기준
     max_enroll = max(c["_raw_enrollment"] for c in candidates) or 1.0
     for c in candidates:
-        normalized = c["_raw_enrollment"] / max_enroll
-        c["composite_score"] = normalized * 0.5 + (c["composite_score"] - c["_raw_enrollment"] * 0.5)
-        del c["_raw_enrollment"]
+        norm_enroll = c["_raw_enrollment"] / max_enroll
+        c["composite_score"] = norm_enroll * 0.5 + c["_job_score"] * 0.3 + c["_low_competition"] * 0.2
+        del c["_raw_enrollment"], c["_job_score"], c["_low_competition"]
 
     # composite_score 내림차순 정렬 후 상위 5개
     candidates.sort(key=lambda x: x["composite_score"], reverse=True)
@@ -168,7 +165,7 @@ def simulate_new_course(
         logger.warning("수요 예측 실패: %s — 기본값 사용", exc)
         baseline_enrollment = 0
 
-    optimistic_enrollment = max(1, int(baseline_enrollment * 1.2))
+    optimistic_enrollment = max(0, int(baseline_enrollment * 1.2))
     pessimistic_enrollment = max(0, int(baseline_enrollment * 0.8))
 
     def make_scenario(scenario_name: str, enrollment: int) -> dict:
@@ -294,17 +291,19 @@ def get_demographics_breakdown(field: str) -> dict:
         purpose_distribution = []
 
     # 트렌드: 최근 절반 vs 이전 절반 수강생 수 비교
-    if "date" in field_df.columns:
+    if "date" in field_df.columns and "enrollment_count" in field_df.columns:
         try:
             field_df["date"] = pd.to_datetime(field_df["date"])
             field_df = field_df.sort_values("date")
             mid = len(field_df) // 2
             if mid > 0:
-                recent_count = len(field_df.iloc[mid:])
-                older_count = len(field_df.iloc[:mid])
-                if recent_count > older_count * 1.05:
+                older_sum = float(field_df.iloc[:mid]["enrollment_count"].sum())
+                recent_sum = float(field_df.iloc[-mid:]["enrollment_count"].sum())
+                if older_sum == 0:
+                    trend = "증가" if recent_sum > 0 else "안정"
+                elif recent_sum > older_sum * 1.05:
                     trend = "증가"
-                elif recent_count < older_count * 0.95:
+                elif recent_sum < older_sum * 0.95:
                     trend = "감소"
                 else:
                     trend = "안정"

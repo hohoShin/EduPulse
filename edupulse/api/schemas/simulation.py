@@ -21,9 +21,11 @@ class OptimalStartRequest(BaseModel):
     search_window_end: date
 
     @model_validator(mode="after")
-    def check_window_max_16_weeks(self) -> "OptimalStartRequest":
-        """검색 윈도우는 최대 16주(112일)로 제한한다."""
+    def check_window_range(self) -> "OptimalStartRequest":
+        """검색 윈도우: end > start, 최대 16주(112일)."""
         delta = (self.search_window_end - self.search_window_start).days
+        if delta < 0:
+            raise ValueError("search_window_end는 search_window_start 이후여야 합니다.")
         if delta > 112:
             raise ValueError("search_window_end - search_window_start 는 최대 16주(112일)입니다.")
         return self

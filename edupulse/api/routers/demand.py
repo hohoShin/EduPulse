@@ -1,5 +1,5 @@
 """수요 예측 API 라우터."""
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter
 
@@ -41,7 +41,7 @@ def predict_demand(request: DemandRequest):
             upper=result.confidence_upper,
         ),
         model_used=result.model_used,
-        prediction_date=datetime.utcnow(),
+        prediction_date=datetime.now(timezone.utc),
     )
 
 

@@ -23,8 +23,6 @@ class MarketingResponse(BaseModel):
 
 class LeadConversionRequest(BaseModel):
     field: Literal["coding", "security", "game", "art"]
-    start_date: date
-    model_name: Literal["xgboost", "prophet", "ensemble"] = "ensemble"
 
 
 class LeadConversionResponse(BaseModel):

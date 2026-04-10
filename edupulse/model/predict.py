@@ -17,7 +17,6 @@ from edupulse.constants import (
     SEARCH_TRENDS_PATH as _SEARCH_TRENDS_PATH,
     JOB_POSTINGS_PATH as _JOB_POSTINGS_PATH,
     CONSULTATION_PATH as _CONSULTATION_PATH,
-    STUDENT_PROFILES_PATH as _STUDENT_PROFILES_PATH,
     WEB_LOGS_PATH as _WEB_LOGS_PATH,
     CERT_EXAM_PATH as _CERT_EXAM_PATH,
     COMPETITOR_PATH as _COMPETITOR_PATH,
@@ -197,10 +196,10 @@ def load_csv_cached(path: str) -> pd.DataFrame | None:
     """
     with _data_cache_lock:
         if path in _data_cache:
-            return _data_cache[path]
+            return _data_cache[path].copy()
         if os.path.exists(path):
             _data_cache[path] = pd.read_csv(path)
-            return _data_cache[path]
+            return _data_cache[path].copy()
         return None  # 파일 생성 시 자동 감지를 위해 캐시하지 않음
 
 
@@ -297,9 +296,8 @@ def build_features(course_name: str, start_date: str, field: str) -> pd.DataFram
         except Exception as e:
             logger.warning("채용 공고 로딩 실패, job_count=0 사용: %s", e)
 
-    # --- 6) consultation_count, conversion_rate (consultation_logs.csv) ---
+    # --- 6) consultation_count (consultation_logs.csv) ---
     consultation_count = 0.0
-    conversion_rate = 0.0
     if os.path.exists(_CONSULTATION_PATH):
         try:
             consult_df = pd.read_csv(_CONSULTATION_PATH)
@@ -308,31 +306,11 @@ def build_features(course_name: str, start_date: str, field: str) -> pd.DataFram
             prior_consult = field_consult[field_consult["date"] < target_date]
             if len(prior_consult) >= 1:
                 consultation_count = float(prior_consult.iloc[-1]["consultation_count"])
-                conversion_rate = float(prior_consult.iloc[-1]["conversion_rate"])
         except Exception as e:
             logger.warning("상담 로그 로딩 실패, consultation=0 사용: %s", e)
 
-    # --- 7) age_group_diversity (student_profiles.csv) ---
-    age_group_diversity = 0.0
-    if os.path.exists(_STUDENT_PROFILES_PATH):
-        try:
-            profile_df = pd.read_csv(_STUDENT_PROFILES_PATH)
-            profile_df["date"] = pd.to_datetime(profile_df["date"])
-            field_profile = profile_df[profile_df["field"] == field].sort_values("date")
-            prior_profile = field_profile[field_profile["date"] < target_date]
-            if len(prior_profile) >= 1:
-                row_p = prior_profile.iloc[-1]
-                age_cols = [row_p.get("age_20s_ratio", 0.0), row_p.get("age_30s_ratio", 0.0), row_p.get("age_40plus_ratio", 0.0)]
-                import numpy as _np
-                eps = 1e-10
-                age_arr = _np.array(age_cols, dtype=float)
-                age_group_diversity = float(-_np.sum(age_arr * _np.log(age_arr + eps)))
-        except Exception as e:
-            logger.warning("학생 프로필 로딩 실패, age_group_diversity=0 사용: %s", e)
-
-    # --- 8) page_views, cart_abandon_rate (web_logs.csv) ---
+    # --- 7) page_views (web_logs.csv) ---
     page_views = 0.0
-    cart_abandon_rate = 0.0
     if os.path.exists(_WEB_LOGS_PATH):
         try:
             web_df = pd.read_csv(_WEB_LOGS_PATH)
@@ -341,7 +319,6 @@ def build_features(course_name: str, start_date: str, field: str) -> pd.DataFram
             prior_web = field_web[field_web["date"] < target_date]
             if len(prior_web) >= 1:
                 page_views = float(prior_web.iloc[-1]["page_views"])
-                cart_abandon_rate = float(prior_web.iloc[-1]["cart_abandon_rate"])
         except Exception as e:
             logger.warning("웹 로그 로딩 실패, page_views=0 사용: %s", e)
 
@@ -406,10 +383,7 @@ def build_features(course_name: str, start_date: str, field: str) -> pd.DataFram
         "job_count": job_count,
         "field_encoded": field_encoded,
         "consultation_count": consultation_count,
-        "conversion_rate": conversion_rate,
         "page_views": page_views,
-        "cart_abandon_rate": cart_abandon_rate,
-        "age_group_diversity": age_group_diversity,
         "has_cert_exam": has_cert_exam,
         "weeks_to_exam": weeks_to_exam,
         "competitor_openings": competitor_openings,
@@ -427,7 +401,7 @@ def predict_demand(
     start_date: str,
     field: str,
     model_name: str = "ensemble",
-    version: int = 2,
+    version: int = MODEL_VERSION,
 ) -> PredictionResult:
     """API에서 호출하는 수요 예측 진입점.
 

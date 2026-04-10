@@ -2,13 +2,13 @@
 from datetime import date
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class ScheduleRequest(BaseModel):
     course_name: str
     start_date: date
-    predicted_enrollment: int
+    predicted_enrollment: int = Field(ge=0)
 
 
 class ClassAssignment(BaseModel):
