@@ -58,8 +58,18 @@ frontend/.env.local
 .DS_Store
 Thumbs.db
 
-# omc / claude / local agent state
-.omc/
+# omc / claude / local agent state — 기획 문서만 포함, 런타임 상태 제외
+.omc/state/
+.omc/sessions/
+.omc/logs/
+.omc/research/
+.omc/notepad.md
+.omc/project-memory.json
+frontend/.omc/
+
+.sisyphus/boulder.json
+.sisyphus/ralph-loop.local.md
+
 .claude/
-.sisyphus/
+
 .playwright-mcp/

@@ -185,9 +185,9 @@ edupulse/                               # 프로젝트 루트
 │   ├── architecture.md                # 본 문서 — 프로젝트 구조 + 기능 + API 스펙
 │   ├── data-and-model.md              # 데이터 파이프라인 + 모델 가이드
 │   ├── frontend-integration.md        # 프론트엔드 연동 가이드
-│   ├── ai_chat_report/                # AI 대화 기반 활용 리포트
+│   ├── ai_reports/                    # AI 활용 리포트 (#1~#7 + 모델 해설)
 │   ├── ai_plans/                      # AI 기반 설계 문서
-│   └── ai_tool_report/                # AI 도구 활용 리포트
+│   └── ai_collaboration_index.md      # AI 협업 문서 인덱스
 │
 ├── pyproject.toml                      # Python 프로젝트 메타데이터
 ├── requirements.txt                    # 공통 패키지
@@ -712,5 +712,5 @@ node_modules/
 | `docs/data-and-model.md` | 데이터 파이프라인 + 모델 가이드 |
 | `docs/frontend-integration.md` | 프론트엔드-백엔드 연동 가이드 |
 | `docs/ai_plans/` | AI 기반 설계 문서 (4개) |
-| `docs/ai_chat_report/` | AI 대화 기반 활용 리포트 (1개) |
-| `docs/ai_tool_report/` | AI 도구 활용 리포트 (4개) |
+| `docs/ai_reports/` | AI 활용 리포트 (#1~#7 + 모델 해설, 총 8개) |
+| `docs/ai_collaboration_index.md` | AI 협업 문서 인덱스 (리포트 + 계획서 + 이관 문서) |

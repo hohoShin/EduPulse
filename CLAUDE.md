@@ -131,9 +131,9 @@ edupulse/                              # Project root
 │   └── pipeline_test.ipynb            # End-to-end pipeline test
 │
 ├── docs/                              # Project documentation
-│   ├── ai_chat_report/                # AI usage reports (conversation-based)
+│   ├── ai_reports/                    # AI usage reports (#1~#7 + model guide)
 │   ├── ai_plans/                      # AI planning documents
-│   ├── ai_tool_report/                # AI tool usage reports
+│   ├── ai_collaboration_index.md      # AI collaboration document index
 │   └── 합성_데이터_생성_가이드.md        # Synthetic data generation guide
 │
 ├── Dockerfile                         # Docker image build
