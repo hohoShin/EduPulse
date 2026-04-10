@@ -22,6 +22,7 @@ services:
       API_HOST: "0.0.0.0"
       API_PORT: "8000"
       CORS_ORIGINS: ${CORS_ORIGINS:-}
+      MODEL_VERSION: ${MODEL_VERSION:-1}
     ports:
       - "8000:8000"
     depends_on:

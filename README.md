@@ -137,32 +137,106 @@ Droplet 사양 한계로 LSTM은 서버 자동 재학습에서 제외합니다.
 scp model/saved/lstm/model.pt user@your-droplet-ip:/app/model/saved/lstm/
 ```
 
-## 🖥️ 프론트엔드 (Phase D 완료)
+## 🚀 서버 배포 (Docker + Portainer)
 
-프론트엔드는 **Phase D: 프론트엔드-백엔드 실시간 연동**이 완료된 상태입니다. 5개 페이지 전체가 FastAPI 백엔드와 실시간 연동됩니다.
+### 구성
 
-### 주요 기능
-- **Dashboard**: 운영 현황 요약 (수요 예측 + 경쟁 동향 + 알림)
-- **Simulator**: 신규 강좌 수요 + 운영 + 마케팅 통합 시뮬레이션
-- **Marketing**: 잠재 수강생 전환 예측 + 등급별 광고 타이밍
-- **Operations**: 폐강 위험 평가 + 강사/강의실 배정
-- **Market**: 인구통계 + 경쟁사 동향 + 최적 개강일
-- **Adapter Pattern**: Mock/Hybrid/Real 어댑터 전환 (환경변수 기반)
+```
+docker-compose.yml
+├── db        (PostgreSQL 16, port 5432)
+├── api       (FastAPI + uvicorn, port 8000)
+└── frontend  (React + nginx, port 3000)
+```
 
-### 로컬 실행 방법
+### 환경변수
+
+`.env.example`을 복사하여 `.env` 파일을 생성하고 값을 설정합니다.
+
+| 변수 | 설명 | 필수 |
+|------|------|------|
+| `POSTGRES_PASSWORD` | DB 비밀번호 | O |
+| `CORS_ORIGINS` | API CORS 허용 origin (쉼표 구분) | O (배포 시) |
+| `MODEL_VERSION` | 로딩할 모델 버전 | - (기본: 1) |
+| `VITE_API_BASE_URL` | 프론트엔드→API 주소 | - (빈 값 = 같은 origin) |
+| `VITE_ADAPTER` | 프론트엔드 어댑터 (mock/api) | - (기본: api) |
+
+전체 목록은 `.env.example` 참고.
+
+### 모델 학습 및 버전 관리
+
 ```bash
-# Mock 모드 (백엔드 불필요)
+# 로컬에서 모델 학습 (v1 → v2 자동 증가)
+python -m edupulse.model.retrain --model xgboost --version auto
+python -m edupulse.model.retrain --model prophet --version auto
+
+# LSTM은 맥북에서만 학습 후 서버로 전송
+python -m edupulse.model.train --model lstm --version 2
+scp -r edupulse/model/saved/lstm/v2/ user@droplet-ip:/app/edupulse/model/saved/lstm/v2/
+
+# 서버에서 새 버전 적용: Portainer에서 MODEL_VERSION=2로 변경 후 재시작
+```
+
+### 수동 배포 (deploy.sh)
+
+```bash
+./scripts/deploy.sh user@droplet-ip
+# git pull → docker compose up --build → alembic migrate → retrain dry-run
+```
+
+---
+
+## 📡 API 엔드포인트
+
+Base URL: `http://<서버IP>:8000/api/v1`
+
+| Method | Path | 설명 |
+|--------|------|------|
+| GET | `/health` | 서버 상태 + 로딩된 모델 목록 |
+| POST | `/demand/predict` | 수요 예측 (등급 + 예상 인원 + 신뢰 구간) |
+| POST | `/demand/closure-risk` | 폐강 위험도 평가 |
+| POST | `/demand/lead-conversion` | 잠재 수강생 전환 예측 |
+| POST | `/schedule/suggest` | 강사·강의실 배정 제안 |
+| POST | `/marketing/timing` | 광고 타이밍 + 얼리버드 전략 추천 |
+| POST | `/simulation/simulate` | 신규 강좌 수요 시뮬레이션 |
+| POST | `/simulation/optimal-start` | 최적 개강일 탐색 |
+| POST | `/simulation/demographics` | 연령·목적별 수요 분석 |
+| POST | `/simulation/competitors` | 경쟁사 동향 분석 |
+
+### 예측 요청 예시
+
+```bash
+curl -X POST http://localhost:8000/api/v1/demand/predict \
+  -H "Content-Type: application/json" \
+  -d '{"course_name": "Python 웹개발", "start_date": "2026-06-01", "field": "coding"}'
+```
+
+```json
+{
+  "predicted_enrollment": 8.5,
+  "demand_tier": "High",
+  "confidence_lower": 6.2,
+  "confidence_upper": 10.8,
+  "model_used": "ensemble(xgboost+prophet)"
+}
+```
+
+---
+
+## 🖥️ 프론트엔드
+
+5개 페이지(Dashboard, Simulator, Marketing, Operations, Market)로 구성되며 FastAPI 백엔드와 연동됩니다.
+
+```bash
+# 로컬 실행 (Mock 모드, 백엔드 불필요)
 cd frontend && npm install && npm run dev
 
-# Real 모드 (백엔드 필요)
+# 백엔드 연동 모드
 # 터미널 1: .venv/bin/python -m uvicorn edupulse.api.main:app --reload
-# 터미널 2: cd frontend && VITE_ADAPTER=real npm run dev
+# 터미널 2: cd frontend && VITE_ADAPTER=api npm run dev
 ```
-- 접속 주소: `http://localhost:5173/`
 
-### 상세 문서
-- 연동 가이드: [`docs/frontend-integration.md`](docs/frontend-integration.md)
-- Phase 로드맵: [`docs/ai_plans/edupulse-frontend-phases.md`](docs/ai_plans/edupulse-frontend-phases.md)
+- 접속 주소: `http://localhost:5173/`
+- 상세 문서: [`docs/frontend-integration.md`](docs/frontend-integration.md)
 
 ---
 
@@ -379,3 +453,13 @@ pytest tests/test_demand.py -v
 > 본 솔루션은 단순 수요 예측에 그치지 않고,  
 > **예측 결과를 운영·마케팅·전략 세 방향으로 자동 연결**하여  
 > 교육 운영자의 실질적인 의사결정을 데이터 기반으로 전환합니다.
+
+---
+
+## 📚 상세 문서
+
+| 문서 | 내용 |
+|------|------|
+| [`docs/architecture.md`](docs/architecture.md) | 시스템 아키텍처, API 엔드포인트 상세 (요청/응답 예시), 프론트엔드 페이지·컴포넌트 구조, 어댑터 패턴, 환경 설정, Git 전략 |
+| [`docs/data-and-model.md`](docs/data-and-model.md) | 데이터 파이프라인 전체 흐름, 합성 데이터 9종 설계, 전처리 규칙, XGBoost·Prophet·LSTM 모델 상세, 앙상블 구조, 피처 컬럼 정의 |
+| [`docs/frontend-integration.md`](docs/frontend-integration.md) | 프론트엔드-백엔드 연동 가이드, 어댑터 전환 방법, API 호출 흐름 |
