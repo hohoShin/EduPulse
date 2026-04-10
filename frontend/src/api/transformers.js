@@ -88,7 +88,7 @@ export function transformSimulateResponse(raw, courseName = '', field = '') {
 /**
  * Transform POST /api/v1/marketing/lead-conversion → mock fixture 형태.
  *
- * Backend: { field, estimated_conversions, conversion_rate_trend: float[],
+ * Backend: { field, estimated_conversions,
  *            consultation_count_trend: float[], recommendations: string[] }
  * Fixture: snake_case + recommendations: {text, link}[] + previous_conversions 등 추가 필드
  */
@@ -97,9 +97,7 @@ export function transformLeadConversionResponse(raw) {
     field: raw.field,
     estimated_conversions: raw.estimated_conversions,
     previous_conversions: null,
-    target_conversion_rate: null,
     current_demand_tier: null,
-    conversion_rate_trend: raw.conversion_rate_trend ?? [],
     consultation_count_trend: raw.consultation_count_trend ?? [],
     recommendations: (raw.recommendations ?? []).map((text) => ({ text, link: null })),
   };

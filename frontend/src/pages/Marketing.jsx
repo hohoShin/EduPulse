@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import StatusPanel from '../components/StatusPanel.jsx';
 import FieldSelector from '../components/FieldSelector.jsx';
 import TierBadge from '../components/TierBadge.jsx';
@@ -33,17 +33,9 @@ const Marketing = () => {
     fetchData();
   }, [field]);
 
-  const conversionTrendData = leadData?.conversion_rate_trend
-    ? leadData.conversion_rate_trend.map((v, i) => ({ week: `${i + 1}주`, rate: parseFloat((v * 100).toFixed(1)) }))
-    : [];
-
   const consultationTrendData = leadData?.consultation_count_trend
     ? leadData.consultation_count_trend.map((v, i) => ({ week: `${i + 1}주`, count: v }))
     : [];
-
-  const targetRatePercent = leadData?.target_conversion_rate != null
-    ? parseFloat((leadData.target_conversion_rate * 100).toFixed(1))
-    : null;
 
   const conversionChangeRate = leadData?.estimated_conversions != null && leadData?.previous_conversions != null && leadData.previous_conversions !== 0
     ? ((leadData.estimated_conversions - leadData.previous_conversions) / leadData.previous_conversions * 100).toFixed(1)
@@ -126,40 +118,17 @@ const Marketing = () => {
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: 'var(--space-6)', marginBottom: 'var(--space-6)' }}>
-              <div>
-                <h3 style={{ fontSize: '0.875rem', fontWeight: '600', color: 'var(--color-text-muted)', marginBottom: 'var(--space-3)' }}>전환율 트렌드 (%)</h3>
-                <ResponsiveContainer width="100%" height={250}>
-                  <LineChart data={conversionTrendData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
-                    <XAxis dataKey="week" tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }} />
-                    <YAxis tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }} unit="%" />
-                    <Tooltip formatter={(v) => [`${v}%`, '전환율']} />
-                    {targetRatePercent !== null && (
-                      <ReferenceLine
-                        y={targetRatePercent}
-                        stroke="#f59e0b"
-                        strokeDasharray="4 4"
-                        label={{ value: `목표 ${targetRatePercent}%`, position: 'insideTopRight', fontSize: 11, fill: '#f59e0b' }}
-                      />
-                    )}
-                    <Line type="monotone" dataKey="rate" stroke="#4F46E5" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-
-              <div>
-                <h3 style={{ fontSize: '0.875rem', fontWeight: '600', color: 'var(--color-text-muted)', marginBottom: 'var(--space-3)' }}>상담 건수 트렌드</h3>
-                <ResponsiveContainer width="100%" height={250}>
-                  <BarChart data={consultationTrendData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
-                    <XAxis dataKey="week" tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }} />
-                    <YAxis tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }} />
-                    <Tooltip formatter={(v) => [v, '상담 건수']} />
-                    <Bar dataKey="count" fill="#4F46E5" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
+            <div style={{ marginBottom: 'var(--space-6)' }}>
+              <h3 style={{ fontSize: '0.875rem', fontWeight: '600', color: 'var(--color-text-muted)', marginBottom: 'var(--space-3)' }}>상담 건수 트렌드</h3>
+              <ResponsiveContainer width="100%" height={250}>
+                <BarChart data={consultationTrendData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+                  <XAxis dataKey="week" tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }} />
+                  <YAxis tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }} />
+                  <Tooltip formatter={(v) => [v, '상담 건수']} />
+                  <Bar dataKey="count" fill="#4F46E5" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
             </div>
 
             {leadData?.recommendations?.length > 0 && (

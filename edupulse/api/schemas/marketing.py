@@ -28,6 +28,5 @@ class LeadConversionRequest(BaseModel):
 class LeadConversionResponse(BaseModel):
     field: str
     estimated_conversions: int
-    conversion_rate_trend: list[float]
     consultation_count_trend: list[float]
     recommendations: list[str]

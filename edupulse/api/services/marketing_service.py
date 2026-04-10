@@ -6,19 +6,22 @@ from edupulse.model.predict import load_csv_cached
 
 logger = logging.getLogger(__name__)
 
+# 기본 전환율 (상담 → 등록). 실제 데이터 확보 시 분야별 동적 계산으로 전환 예정.
+DEFAULT_CONVERSION_RATE = 0.3
+
 
 def predict_lead_conversion(field: str) -> dict:
     """잠재 수강생 전환율 예측.
 
     consultation_logs.csv + web_logs.csv를 집계하여 최근 8주간
-    전환율 추세와 상담 건수 추세를 분석하고, 예상 전환 수강생 수와
+    상담 건수 추세를 분석하고, 예상 전환 수강생 수와
     마케팅 권고안을 반환한다.
 
     Args:
         field: 분야 ('coding', 'security', 'game', 'art')
 
     Returns:
-        estimated_conversions, conversion_rate_trend, consultation_count_trend,
+        estimated_conversions, consultation_count_trend,
         recommendations를 포함한 dict
     """
     import pandas as pd
@@ -26,12 +29,11 @@ def predict_lead_conversion(field: str) -> dict:
     consult_df = load_csv_cached(CONSULTATION_PATH)
     web_df = load_csv_cached(WEB_LOGS_PATH)
 
-    conversion_rate_trend: list[float] = []
     consultation_count_trend: list[float] = []
     estimated_conversions = 0
     recommendations: list[str] = []
 
-    # consultation_logs.csv: 전환율 + 상담 건수 추세
+    # consultation_logs.csv: 상담 건수 추세
     if consult_df is not None and len(consult_df) > 0 and "field" in consult_df.columns:
         try:
             cdf = consult_df.copy()
@@ -39,11 +41,7 @@ def predict_lead_conversion(field: str) -> dict:
             field_df = cdf[cdf["field"] == field].sort_values("date")
 
             if len(field_df) > 0:
-                # 최근 8주 데이터 추출
                 recent = field_df.tail(8)
-
-                if "conversion_rate" in recent.columns:
-                    conversion_rate_trend = [round(float(v), 4) for v in recent["conversion_rate"].tolist()]
 
                 if "consultation_count" in recent.columns:
                     consultation_count_trend = [round(float(v), 4) for v in recent["consultation_count"].tolist()]
@@ -68,25 +66,19 @@ def predict_lead_conversion(field: str) -> dict:
         except Exception as exc:
             logger.warning("웹 로그 집계 실패 (field=%s): %s", field, exc)
 
-    # 예상 전환 수강생 수 계산
-    if conversion_rate_trend and consultation_count_trend:
-        avg_conversion_rate = sum(conversion_rate_trend) / len(conversion_rate_trend)
+    # 예상 전환 수강생 수 계산 (기본 전환율 적용)
+    if consultation_count_trend:
         avg_consultation_count = sum(consultation_count_trend) / len(consultation_count_trend)
-        estimated_conversions = max(0, int(avg_consultation_count * avg_conversion_rate))
-    elif consultation_count_trend:
-        avg_consultation_count = sum(consultation_count_trend) / len(consultation_count_trend)
-        estimated_conversions = max(0, int(avg_consultation_count * 0.3))  # 기본 전환율 30%
+        estimated_conversions = max(0, int(avg_consultation_count * DEFAULT_CONVERSION_RATE))
 
     # 추세 분석 및 권고안 생성
     recommendations = _generate_recommendations(
         field=field,
-        conversion_rate_trend=conversion_rate_trend,
         consultation_count_trend=consultation_count_trend,
     )
 
     return {
         "estimated_conversions": estimated_conversions,
-        "conversion_rate_trend": conversion_rate_trend,
         "consultation_count_trend": consultation_count_trend,
         "recommendations": recommendations,
     }
@@ -94,14 +86,12 @@ def predict_lead_conversion(field: str) -> dict:
 
 def _generate_recommendations(
     field: str,
-    conversion_rate_trend: list[float],
     consultation_count_trend: list[float],
 ) -> list[str]:
     """추세 방향에 따라 마케팅 권고안 생성.
 
     Args:
         field: 분야
-        conversion_rate_trend: 최근 8주 전환율 목록
         consultation_count_trend: 최근 8주 상담 건수 목록
 
     Returns:
@@ -125,16 +115,7 @@ def _generate_recommendations(
             return "down"
         return "stable"
 
-    conv_direction = _trend_direction(conversion_rate_trend) if conversion_rate_trend else "stable"
     consult_direction = _trend_direction(consultation_count_trend) if consultation_count_trend else "stable"
-
-    # 전환율 추세 기반 권고
-    if conv_direction == "up":
-        recs.append("전환율이 상승 중입니다. 현재 마케팅 메시지와 채널을 유지하세요.")
-    elif conv_direction == "down":
-        recs.append("전환율이 하락 중입니다. 랜딩 페이지 개선 및 상담 프로세스 점검을 권장합니다.")
-    else:
-        recs.append("전환율이 안정적입니다. A/B 테스트로 추가 최적화를 시도해보세요.")
 
     # 상담 건수 추세 기반 권고
     if consult_direction == "up":

@@ -49,7 +49,7 @@ def generate_consultation_logs(
 ) -> pd.DataFrame:
     """상담 로그 합성 데이터 생성.
 
-    등록 수에 1-2주 선행하는 상담 건수와 전환율을 생성한다.
+    등록 수에 1-2주 선행하는 상담 건수를 생성한다.
 
     경고: enrollment_df에서 값을 파생하므로 합성 상관 관계가 인위적으로
     증폭된다(synthetic correlation inflation). 실제 데이터로 대체 전까지
@@ -60,7 +60,7 @@ def generate_consultation_logs(
         seed: 재현성을 위한 난수 시드
 
     Returns:
-        DataFrame with columns: date, field, consultation_count, conversion_rate, ds, y
+        DataFrame with columns: date, field, consultation_count, ds, y
     """
     rng = np.random.default_rng(seed)
     records = []
@@ -81,20 +81,12 @@ def generate_consultation_logs(
             noise_count = rng.normal(0, 1.0)
             consultation_count = int(round(max(0, future_enrollment * multiplier + noise_count)))
 
-            noise_rate = rng.normal(0, 0.03)
-            conversion_rate = float(np.clip(
-                0.15 + 0.05 * (enrollment / max_enrollment) + noise_rate,
-                0.05,
-                0.65,
-            ))
-
             dt_ts = pd.Timestamp(dt)
             date_str = dt_ts.strftime("%Y-%m-%d")
             records.append({
                 "date": date_str,
                 "field": field,
                 "consultation_count": consultation_count,
-                "conversion_rate": round(conversion_rate, 4),
                 "ds": date_str,
                 "y": consultation_count,
             })
@@ -113,7 +105,6 @@ def generate_student_profiles(
     """학생 프로필 합성 데이터 생성.
 
     분야별 연령대 분포와 수강 목적 분포를 Dirichlet 분포로 생성한다.
-    파생 피처(age_group_diversity)는 transformer.py에서 Shannon 엔트로피로 계산된다.
 
     경고: enrollment_df에서 값을 파생하므로 합성 상관 관계가 인위적으로
     증폭된다(synthetic correlation inflation). 실제 데이터로 대체 전까지
