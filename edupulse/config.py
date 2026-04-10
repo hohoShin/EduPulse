@@ -18,6 +18,7 @@ class Settings(BaseSettings):
 
     # Model
     model_dir: str = "edupulse/model/saved"
+    model_version: int = 1
 
     # Collection
     naver_daily_quota: int = 1000

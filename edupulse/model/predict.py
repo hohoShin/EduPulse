@@ -29,7 +29,7 @@ from edupulse.preprocessing.transformer import compute_field_encoding, compute_m
 logger = logging.getLogger(__name__)
 
 # dependencies.py에서도 이 값을 참조한다.
-MODEL_VERSION = 1
+MODEL_VERSION = int(os.environ.get("MODEL_VERSION", 1))
 
 _model_cache: dict[str, BaseForecaster] = {}
 _model_mtime: dict[str, float] = {}

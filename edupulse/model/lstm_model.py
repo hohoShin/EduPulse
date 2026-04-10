@@ -30,17 +30,17 @@ from edupulse.model.base import (
 from edupulse.model.utils import get_device
 from edupulse.model.xgboost_model import FEATURE_COLUMNS, TARGET_COLUMN
 
-SEQUENCE_LENGTH = 12
+SEQUENCE_LENGTH = 8
 BATCH_SIZE = 32
-HIDDEN_SIZE = 64
+HIDDEN_SIZE = 32
 NUM_LAYERS = 2
-DROPOUT = 0.3
+DROPOUT = 0.2
 INPUT_SIZE = len(FEATURE_COLUMNS)
 
 # Early Stopping / LR Scheduler 설정
-PATIENCE = 7
+PATIENCE = 15
 SCHEDULER_FACTOR = 0.5
-SCHEDULER_PATIENCE = 3
+SCHEDULER_PATIENCE = 5
 MIN_LR = 1e-6
 VAL_RATIO = 0.1
 
@@ -374,8 +374,8 @@ class LSTMForecaster(BaseForecaster):
     def train(
         self,
         df: pd.DataFrame,
-        epochs: int = 100,
-        learning_rate: float = 1e-3,
+        epochs: int = 200,
+        learning_rate: float = 5e-4,
         patience: int = PATIENCE,
         augment: bool = True,
     ) -> None:

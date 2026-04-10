@@ -107,7 +107,7 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {renderDemoSwitcher()}
+      {import.meta.env.DEV && renderDemoSwitcher()}
 
       <div className="grid-auto-fit" style={{ marginBottom: 'var(--space-8)' }}>
         {summary.state === 'loading' && (
