@@ -9,10 +9,12 @@
 
 import mockAdapter from './mockAdapter.js';
 import realAdapter from './realAdapter.js';
+import hybridAdapter from './hybridAdapter.js';
 
-// Phase A Default: Use mock adapter
-// Set to 'real' when backend is ready (Phase B+)
-const ACTIVE_ADAPTER = 'mock';
+// Active adapter is controlled via environment variable.
+// Set VITE_ADAPTER in .env.development or .env.production.
+// Values: 'mock' | 'real' | 'hybrid'
+const ACTIVE_ADAPTER = import.meta.env.VITE_ADAPTER || 'mock';
 
 /**
  * Get the active adapter instance
@@ -21,6 +23,9 @@ const ACTIVE_ADAPTER = 'mock';
 function getAdapter() {
   if (ACTIVE_ADAPTER === 'real') {
     return realAdapter;
+  }
+  if (ACTIVE_ADAPTER === 'hybrid') {
+    return hybridAdapter;
   }
   return mockAdapter;
 }
@@ -89,5 +94,5 @@ export async function getOptimalStart(input) {
   return adapter.getOptimalStart(input);
 }
 
-// Export both adapters for testing/debugging
-export { mockAdapter, realAdapter };
+// Export all adapters for testing/debugging
+export { mockAdapter, realAdapter, hybridAdapter };

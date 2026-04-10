@@ -3,6 +3,7 @@ import StatusPanel from '../components/StatusPanel.jsx';
 import DemandChart from '../components/DemandChart.jsx';
 import AlertPanel from '../components/AlertPanel.jsx';
 import TierBadge from '../components/TierBadge.jsx';
+import FieldSelector from '../components/FieldSelector.jsx';
 import {
   getDashboardSummary,
   getDemandChart,
@@ -11,6 +12,8 @@ import {
 
 const Dashboard = () => {
   const [demoState, setDemoState] = useState('success');
+  const [field, setField] = useState('coding');
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const [summary, setSummary] = useState({ state: 'loading' });
   const [chart, setChart] = useState({ state: 'loading' });
@@ -18,27 +21,31 @@ const Dashboard = () => {
 
   useEffect(() => {
     let isMounted = true;
-    
-    const fetchDashboardData = async () => {
+
+    const run = async () => {
+      setSummary({ state: 'loading' });
+      setChart({ state: 'loading' });
+      setAlerts({ state: 'loading' });
+
       const [summaryData, chartData, alertsData] = await Promise.all([
-        getDashboardSummary({ forceState: demoState }),
-        getDemandChart({ forceState: demoState }),
-        getDashboardAlerts({ forceState: demoState })
+        getDashboardSummary({ forceState: demoState, field }),
+        getDemandChart({ forceState: demoState, field }),
+        getDashboardAlerts({ forceState: demoState, field })
       ]);
-      
+
       if (isMounted) {
         setSummary(summaryData);
         setChart(chartData);
         setAlerts(alertsData);
       }
     };
-    
-    fetchDashboardData();
-    
+
+    run();
+
     return () => {
       isMounted = false;
     };
-  }, [demoState]);
+  }, [demoState, field, refreshKey]);
 
   const stateLabels = { success: '성공', loading: '로딩 중', empty: '데이터 없음', error: '오류' };
 
@@ -77,9 +84,30 @@ const Dashboard = () => {
           <h1 className="page-title">대시보드</h1>
           <p className="page-subtitle">AI 기반 수강 수요 예측 및 운영 현황</p>
         </div>
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 'var(--space-3)' }}>
+          <FieldSelector
+            value={field}
+            onChange={setField}
+            style={{ marginBottom: 0 }}
+          />
+          <button
+            type="button"
+            className="btn"
+            onClick={() => setRefreshKey(k => k + 1)}
+            style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)', whiteSpace: 'nowrap', marginBottom: 'var(--space-4)' }}
+            title="데이터 새로고침"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="23 4 23 10 17 10"></polyline>
+              <polyline points="1 20 1 14 7 14"></polyline>
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+            </svg>
+            새로고침
+          </button>
+        </div>
       </div>
 
-      {renderDemoSwitcher()}
+      {import.meta.env.DEV && renderDemoSwitcher()}
 
       <div className="grid-auto-fit" style={{ marginBottom: 'var(--space-8)' }}>
         {summary.state === 'loading' && (
@@ -133,12 +161,12 @@ const Dashboard = () => {
           <h2 className="card-header">
             시스템 알림
             {alerts.state === 'success' && alerts.data?.length > 0 && (
-              <span style={{ 
-                backgroundColor: 'var(--color-error-bg)', 
-                color: 'var(--color-error-text)', 
-                fontSize: '0.75rem', 
-                padding: '2px 8px', 
-                borderRadius: '12px' 
+              <span style={{
+                backgroundColor: 'var(--color-error-bg)',
+                color: 'var(--color-error-text)',
+                fontSize: '0.75rem',
+                padding: '2px 8px',
+                borderRadius: '12px'
               }}>
                 {alerts.data.length}건
               </span>

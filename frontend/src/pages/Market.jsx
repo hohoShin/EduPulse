@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import StatusPanel from '../components/StatusPanel.jsx';
 import FieldSelector from '../components/FieldSelector.jsx';
@@ -15,9 +15,23 @@ const trendBadgeStyle = {
   감소: { backgroundColor: 'var(--color-error-bg)', color: 'var(--color-error-text)' },
 };
 
+const searchTrendStyle = {
+  상승: { color: 'var(--color-success-text)' },
+  안정: { color: 'var(--color-text-muted)' },
+  하락: { color: 'var(--color-error-text)' },
+};
+
 const formatKoreanDate = (dateStr) => {
   if (!dateStr) return '';
   return new Date(dateStr).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
+};
+
+const formatDelta = (current, previous, unit) => {
+  if (current == null || previous == null) return null;
+  const delta = current - previous;
+  if (delta === 0) return null;
+  const sign = delta > 0 ? '+' : '';
+  return { text: `${sign}${delta}${unit}`, up: delta > 0 };
 };
 
 const Market = () => {
@@ -26,30 +40,42 @@ const Market = () => {
   const [competitorsData, setCompetitorsData] = useState(null);
   const [optimalStartData, setOptimalStartData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
 
-  useEffect(() => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
-    async function fetchData() {
+    setError(null);
+    try {
       const [demo, comp, optimal] = await Promise.all([
         getDemographics({ field }),
         getCompetitors({ field }),
-        getOptimalStart({ field }),
+        getOptimalStart({ field, startDate, endDate }),
       ]);
       setDemographicsData(demo.data);
       setCompetitorsData(comp.data);
       setOptimalStartData(optimal.data);
+    } catch (err) {
+      setError(err?.message || '데이터를 불러오는 중 오류가 발생했습니다.');
+    } finally {
       setLoading(false);
     }
+  }, [field, startDate, endDate]);
+
+  useEffect(() => {
     fetchData();
-  }, [field]);
+  }, [fetchData]);
 
   const ageDistData = demographicsData?.age_distribution
-    ? Object.entries(demographicsData.age_distribution).map(([name, value]) => ({ name, value }))
+    ? demographicsData.age_distribution.map((item) => ({ name: item.group, value: item.ratio }))
     : [];
 
   const purposeDistData = demographicsData?.purpose_distribution
-    ? Object.entries(demographicsData.purpose_distribution).map(([name, value]) => ({ name, value }))
+    ? demographicsData.purpose_distribution.map((item) => ({ name: item.purpose, value: item.ratio }))
     : [];
+
+  const totalStudents = demographicsData?.total_students ?? 0;
 
   const trendLabel = demographicsData?.trend;
   const trendStyle = trendBadgeStyle[trendLabel] || trendBadgeStyle['안정'];
@@ -57,6 +83,17 @@ const Market = () => {
   const saturationIndex = competitorsData?.saturation_index ?? 0;
   const saturationNormalized = Math.min(saturationIndex / 2, 1);
   const saturationLevel = saturationIndex >= 1.5 ? 'high' : saturationIndex >= 0.8 ? 'mid' : 'low';
+
+  const openingsDelta = formatDelta(
+    competitorsData?.competitor_openings,
+    competitorsData?.previous_openings,
+    '개'
+  );
+  const priceDelta = formatDelta(
+    competitorsData?.competitor_avg_price != null ? competitorsData.competitor_avg_price / 10000 : null,
+    competitorsData?.previous_avg_price != null ? competitorsData.previous_avg_price / 10000 : null,
+    '만원'
+  );
 
   return (
     <div>
@@ -68,13 +105,62 @@ const Market = () => {
           </h1>
           <p className="page-subtitle">수강생 인구통계, 경쟁 학원 동향, 최적 개강일을 분석합니다.</p>
         </div>
+        <button
+          onClick={fetchData}
+          style={{
+            padding: 'var(--space-2) var(--space-4)',
+            backgroundColor: 'var(--color-primary)',
+            color: '#fff',
+            border: 'none',
+            borderRadius: 'var(--radius-md)',
+            fontSize: '0.875rem',
+            fontWeight: '600',
+            cursor: 'pointer',
+          }}
+        >
+          새로고침
+        </button>
       </div>
 
-      <div style={{ marginBottom: 'var(--space-6)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)', marginBottom: 'var(--space-6)', flexWrap: 'wrap' }}>
         <FieldSelector value={field} onChange={setField} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+          <label style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>시작일</label>
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            style={{
+              padding: 'var(--space-1) var(--space-2)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 'var(--radius-sm)',
+              fontSize: '0.875rem',
+              color: 'var(--color-text-main)',
+              backgroundColor: 'var(--color-surface)',
+            }}
+          />
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+          <label style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>종료일</label>
+          <input
+            type="date"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+            style={{
+              padding: 'var(--space-1) var(--space-2)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 'var(--radius-sm)',
+              fontSize: '0.875rem',
+              color: 'var(--color-text-main)',
+              backgroundColor: 'var(--color-surface)',
+            }}
+          />
+        </div>
       </div>
 
-      {loading ? (
+      {error ? (
+        <StatusPanel variant="error" title="데이터 로드 실패" message={error} />
+      ) : loading ? (
         <div className="card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '300px' }}>
           <StatusPanel variant="loading" title="시장 데이터 분석 중..." message="인구통계 및 경쟁 현황을 불러오고 있습니다." />
         </div>
@@ -90,6 +176,11 @@ const Market = () => {
                   {trendLabel}
                 </span>
               )}
+              {totalStudents > 0 && (
+                <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: '400', marginLeft: 'var(--space-2)' }}>
+                  총 {totalStudents.toLocaleString()}명
+                </span>
+              )}
             </h2>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 'var(--space-6)' }}>
@@ -101,7 +192,7 @@ const Market = () => {
                       data={ageDistData}
                       cx="50%"
                       cy="50%"
-                      outerRadius={90}
+                      outerRadius={80}
                       dataKey="value"
                       label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                     >
@@ -109,7 +200,15 @@ const Market = () => {
                         <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
                       ))}
                     </Pie>
-                    <Tooltip formatter={(v) => [v, '비율']} />
+                    <Tooltip
+                      formatter={(v) => [
+                        totalStudents > 0
+                          ? `${(v * 100).toFixed(0)}% (${(v * totalStudents).toFixed(0)}명)`
+                          : `${(v * 100).toFixed(0)}%`,
+                        '비율'
+                      ]}
+                    />
+                    <Legend />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
@@ -140,6 +239,11 @@ const Market = () => {
                   {competitorsData?.competitor_openings ?? '-'}
                   <span style={{ fontSize: '1rem', fontWeight: '500', color: 'var(--color-text-muted)' }}>개</span>
                 </div>
+                {openingsDelta && (
+                  <div style={{ fontSize: '0.75rem', fontWeight: '600', color: openingsDelta.up ? 'var(--color-error-text)' : 'var(--color-success-text)', marginTop: 'var(--space-1)' }}>
+                    {openingsDelta.text} {openingsDelta.up ? '↑' : '↓'} 전분기 대비
+                  </div>
+                )}
               </div>
 
               <div style={{ backgroundColor: 'var(--color-background)', padding: 'var(--space-4)', borderRadius: 'var(--radius-md)' }}>
@@ -149,12 +253,22 @@ const Market = () => {
                     ? `${(competitorsData.competitor_avg_price / 10000).toLocaleString()}만원`
                     : '-'}
                 </div>
+                {priceDelta && (
+                  <div style={{ fontSize: '0.75rem', fontWeight: '600', color: priceDelta.up ? 'var(--color-error-text)' : 'var(--color-success-text)', marginTop: 'var(--space-1)' }}>
+                    {priceDelta.text} {priceDelta.up ? '↑' : '↓'} 전분기 대비
+                  </div>
+                )}
               </div>
             </div>
 
             <div style={{ marginBottom: 'var(--space-5)' }}>
               <h3 style={{ fontSize: '0.875rem', fontWeight: '600', color: 'var(--color-text-muted)', marginBottom: 'var(--space-3)' }}>시장 포화도</h3>
-              <RiskGauge score={saturationNormalized} level={saturationLevel} />
+              <RiskGauge
+                score={saturationNormalized}
+                level={saturationLevel}
+                label="포화도"
+                labels={{ high: '포화', medium: '보통', low: '여유' }}
+              />
             </div>
 
             {competitorsData?.recommendation && (
@@ -169,7 +283,7 @@ const Market = () => {
             <h2 className="card-header">최적 개강일 추천</h2>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 'var(--space-4)' }}>
-              {optimalStartData?.candidates?.map((candidate, i) => (
+              {optimalStartData?.top_candidates?.map((candidate, i) => (
                 <div
                   key={i}
                   style={{
@@ -194,7 +308,20 @@ const Market = () => {
                     <TierBadge tier={candidate.demand_tier} />
                   </div>
 
-                  <ScoreBar score={candidate.score} recommended={i === 0} />
+                  <ScoreBar score={candidate.composite_score} recommended={i === 0} />
+
+                  {(candidate.competitor_count != null || candidate.search_trend) && (
+                    <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: 'var(--space-2)', display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
+                      {candidate.competitor_count != null && (
+                        <span>경쟁 {candidate.competitor_count}개</span>
+                      )}
+                      {candidate.search_trend && (
+                        <span style={searchTrendStyle[candidate.search_trend] || {}}>
+                          검색 {candidate.search_trend}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
