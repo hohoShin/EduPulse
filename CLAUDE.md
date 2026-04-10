@@ -19,7 +19,7 @@ The core goal is to predict per-cohort enrollment demand in advance by integrati
 | Preprocessing | Pandas, NumPy, scikit-learn |
 | Modeling | Prophet, PyTorch (LSTM), XGBoost |
 | Backend | FastAPI, Docker |
-| Frontend | React, Recharts |
+| Frontend | React, Recharts, Plotly |
 | Data Storage | PostgreSQL |
 
 ---
@@ -27,60 +27,123 @@ The core goal is to predict per-cohort enrollment demand in advance by integrati
 ## Directory Structure
 
 ```
-edupulse/
-├── data/
-│   ├── raw/internal/          # Enrollment history, consultation logs, student profiles, web logs
-│   ├── raw/external/          # Search trends, job postings, certification schedules, competitor data
-│   ├── processed/             # Preprocessed data
-│   └── warehouse/             # Final dataset for model training
+edupulse/                              # Project root
 │
-├── collection/
-│   ├── crawlers/
-│   │   ├── job_posting.py     # Job posting crawler (coding, security, game, art roles)
-│   │   └── competitor.py      # Competitor academy schedule and pricing crawler
-│   └── api/
-│       ├── naver_datalab.py   # Naver DataLab search volume collection
-│       └── google_trends.py   # Google Trends keyword trend collection
+├── edupulse/                          # Main Python package
+│   ├── config.py                      # Environment settings (DB, API keys)
+│   ├── constants.py                   # Constants (fields, keywords)
+│   ├── database.py                    # DB connection and session management
+│   │
+│   ├── api/                           # Backend API server
+│   │   ├── main.py                    # FastAPI app entry point
+│   │   ├── dependencies.py            # Dependency injection
+│   │   ├── middleware.py              # Middleware (CORS, etc.)
+│   │   ├── routers/
+│   │   │   ├── demand.py              # Demand prediction endpoint
+│   │   │   ├── schedule.py            # Instructor scheduling endpoint
+│   │   │   ├── marketing.py           # Marketing timing endpoint
+│   │   │   └── health.py              # Health check endpoint
+│   │   └── schemas/                   # Pydantic request/response schemas
+│   │       ├── common.py              # Common schemas
+│   │       ├── demand.py
+│   │       ├── marketing.py
+│   │       └── schedule.py
+│   │
+│   ├── collection/                    # Data collection
+│   │   └── api/                       # External API integration
+│   │       ├── collect_search_trends.py  # Collection orchestrator (CLI entry point)
+│   │       ├── naver_datalab.py       # Naver DataLab search volume (primary source)
+│   │       ├── google_trends.py       # Google Trends (cache-only)
+│   │       ├── keywords.py            # Field-to-keyword mapping (Korean/English)
+│   │       └── quota.py               # Naver API daily quota tracker (KST reset)
+│   │
+│   ├── data/                          # Data storage and generators
+│   │   ├── generators/                # Synthetic data generators
+│   │   │   ├── enrollment_generator.py  # Enrollment history synthesis
+│   │   │   ├── external_generator.py    # External data synthesis
+│   │   │   └── run_all.py             # Run all synthetic data generation
+│   │   ├── raw/                       # Raw collected data
+│   │   │   ├── internal/              # Internal data (enrollment, consultation logs)
+│   │   │   └── external/              # External data (search trends, job postings)
+│   │   ├── processed/                 # Preprocessed data
+│   │   └── warehouse/                 # Final dataset for model training
+│   │
+│   ├── db_models/                     # SQLAlchemy DB models
+│   │   ├── course.py                  # Course model
+│   │   ├── enrollment.py              # Enrollment model
+│   │   └── prediction.py              # Prediction result model
+│   │
+│   ├── model/                         # AI modeling
+│   │   ├── base.py                    # Model base class
+│   │   ├── train.py                   # Model training
+│   │   ├── predict.py                 # Demand prediction (High/Mid/Low + count)
+│   │   ├── evaluate.py                # MAPE evaluation, time-series K-Fold
+│   │   ├── retrain.py                 # Automatic retraining scheduler
+│   │   ├── ensemble.py                # Ensemble model
+│   │   ├── prophet_model.py           # Prophet model
+│   │   ├── lstm_model.py              # LSTM model
+│   │   ├── xgboost_model.py           # XGBoost model
+│   │   ├── utils.py                   # Model utilities
+│   │   └── saved/                     # Saved trained models
+│   │       ├── prophet/
+│   │       ├── lstm/
+│   │       └── xgboost/
+│   │
+│   └── preprocessing/                 # Data preprocessing
+│       ├── cleaner.py                 # Missing value interpolation, outlier handling
+│       ├── transformer.py             # Time-series alignment, lag feature generation
+│       └── merger.py                  # Multi-source data join and integration
 │
-├── preprocessing/
-│   ├── cleaner.py             # Missing value interpolation, IQR/Z-score outlier handling
-│   ├── transformer.py         # Time-series alignment, sliding window, lag feature generation
-│   └── merger.py              # Internal + external data join and integration
+├── alembic/                           # DB migrations
+│   └── versions/
+│       └── 001_initial.py             # Initial table creation
 │
-├── model/
-│   ├── train.py               # Model training
-│   ├── predict.py             # Demand prediction (High/Mid/Low + estimated enrollment count)
-│   ├── evaluate.py            # MAPE evaluation, time-series K-Fold cross-validation
-│   ├── retrain.py             # Automatic retraining scheduler after each cohort
-│   └── saved/                 # Saved models under prophet/, lstm/, xgboost/
+├── scripts/                           # Execution scripts
+│   ├── run_pipeline.py                # Full pipeline execution
+│   ├── deploy.sh                      # Deployment script
+│   └── transfer_lstm.sh               # LSTM model transfer to server
 │
-├── api/
-│   ├── main.py                # FastAPI entry point
-│   ├── routers/
-│   │   ├── demand.py          # Demand prediction API
-│   │   ├── schedule.py        # Instructor scheduling suggestion API
-│   │   └── marketing.py       # Ad timing and pricing suggestion API
-│   └── schemas/               # Pydantic request/response schemas
+├── tests/                             # Tests
+│   ├── conftest.py                    # Test fixtures
+│   ├── test_collection.py             # Data collection tests
+│   ├── test_preprocessing.py          # Preprocessing tests
+│   ├── test_model.py                  # Model tests
+│   ├── test_demand.py                 # Demand prediction API tests
+│   └── test_health.py                 # Health check tests
 │
-├── frontend/
-│   └── src/
-│       ├── pages/
-│       │   ├── Dashboard.jsx  # Main prediction dashboard
-│       │   ├── Simulator.jsx  # New course demand simulator
-│       │   └── Reports.jsx    # Strategic reports
-│       └── components/
-│           ├── DemandChart.jsx    # Demand prediction visualization
-│           ├── AlertPanel.jsx     # Closure risk and ad timing alerts
-│           └── ScheduleBoard.jsx  # Instructor assignment board
+├── frontend/                          # Dashboard frontend (planned)
+│   ├── src/
+│   │   ├── pages/
+│   │   │   ├── Dashboard.jsx          # Main prediction dashboard
+│   │   │   ├── Simulator.jsx          # New course demand simulator
+│   │   │   └── Reports.jsx            # Strategic reports
+│   │   └── components/
+│   │       ├── DemandChart.jsx        # Demand prediction visualization
+│   │       ├── AlertPanel.jsx         # Closure risk and ad timing alerts
+│   │       └── ScheduleBoard.jsx      # Instructor assignment board
+│   └── public/
 │
-├── notebooks/
-│   ├── eda.ipynb                  # Exploratory data analysis
-│   ├── feature_engineering.ipynb  # Feature experimentation
-│   └── model_comparison.ipynb     # Model performance comparison
+├── notebooks/                         # Jupyter notebooks for analysis
+│   ├── eda.ipynb                      # Exploratory data analysis
+│   ├── feature_engineering.ipynb      # Feature experimentation
+│   ├── model_comparison.ipynb         # Model performance comparison
+│   ├── model_experiments.ipynb        # Hyperparameter tuning experiments
+│   └── pipeline_test.ipynb            # End-to-end pipeline test
 │
-├── docker-compose.yml
-├── requirements.txt
-├── .env.example
+├── docs/                              # Project documentation
+│   ├── ai_reports/                    # AI usage reports (#1~#7 + model guide)
+│   ├── ai_plans/                      # AI planning documents
+│   ├── ai_collaboration_index.md      # AI collaboration document index
+│   └── 합성_데이터_생성_가이드.md        # Synthetic data generation guide
+│
+├── Dockerfile                         # Docker image build
+├── docker-compose.yml                 # Service container config
+├── docker-compose.dev.yml             # Dev Docker config
+├── pyproject.toml                     # Project metadata and build settings
+├── requirements.txt                   # Shared Python packages
+├── requirements-dev.txt               # Local dev only packages
+├── requirements-server.txt            # Server only packages
+├── .env.example                       # Environment variable template
 └── README.md
 ```
 
@@ -94,8 +157,12 @@ edupulse/
 
 ### Collection — Key Notes
 - Always check `robots.txt` before crawling; maintain a minimum 1–2 second delay between requests
-- Naver DataLab API has a daily call limit — cache results under `data/raw/external/`
-- Include the collection date in external data filenames (e.g. `job_posting_20250407.csv`)
+- Naver DataLab API has a daily call limit (1000/day) — quota tracked in `data/raw/external/.naver_quota.json` (KST reset)
+- Include the collection date range in cache filenames (e.g. `naver_coding_20250101_20250407.json`)
+- **Naver = primary data source** for `search_trends.csv`; Google Trends = cache-only for future research
+- Fallback chain: Naver API → cached Naver JSON → skip (Google never used in pipeline output)
+- Run collection: `python -m edupulse.collection.api.collect_search_trends`
+- Output writes to same path as synthetic generator (`data/raw/external/search_trends.csv`) — drop-in replacement
 
 ### Preprocessing — Key Notes
 - Apply linear interpolation (`interpolate(method='linear')`) first for missing values in time-series data
