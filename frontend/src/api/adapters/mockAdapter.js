@@ -29,6 +29,22 @@ import {
   systemStatusSuccess,
 } from '../../fixtures/systemStatusStates.js';
 
+import {
+  leadConversionSuccess,
+  marketingTimingSuccess,
+} from '../../fixtures/marketingStates.js';
+
+import {
+  closureRiskSuccess,
+  scheduleSuggestSuccess,
+} from '../../fixtures/operationsStates.js';
+
+import {
+  demographicsSuccess,
+  competitorsSuccess,
+  optimalStartSuccess,
+} from '../../fixtures/marketStates.js';
+
 /**
  * Get dashboard summary cards (loading, success, empty, error states available)
  * @returns {Promise<Object>} UIState with summary card data
@@ -126,6 +142,41 @@ export async function getSystemStatus() {
   return systemStatusSuccess;
 }
 
+export async function getLeadConversion(input = {}) {
+  await new Promise(resolve => setTimeout(resolve, 150));
+  return leadConversionSuccess(input.field || 'coding');
+}
+
+export async function getMarketingTiming(input = {}) {
+  await new Promise(resolve => setTimeout(resolve, 100));
+  return marketingTimingSuccess(input.field || 'coding');
+}
+
+export async function getClosureRisk(input = {}) {
+  await new Promise(resolve => setTimeout(resolve, 200));
+  return closureRiskSuccess;
+}
+
+export async function getScheduleSuggest(input = {}) {
+  await new Promise(resolve => setTimeout(resolve, 150));
+  return scheduleSuggestSuccess;
+}
+
+export async function getDemographics(input = {}) {
+  await new Promise(resolve => setTimeout(resolve, 150));
+  return demographicsSuccess(input.field || 'coding');
+}
+
+export async function getCompetitors(input = {}) {
+  await new Promise(resolve => setTimeout(resolve, 100));
+  return competitorsSuccess(input.field || 'coding');
+}
+
+export async function getOptimalStart(input = {}) {
+  await new Promise(resolve => setTimeout(resolve, 200));
+  return optimalStartSuccess(input.field || 'coding');
+}
+
 /**
  * Mock adapter export - includes all surfaces required for Phase A
  */
@@ -135,4 +186,11 @@ export default {
   getDashboardAlerts,
   simulateDemand,
   getSystemStatus,
+  getLeadConversion,
+  getMarketingTiming,
+  getClosureRisk,
+  getScheduleSuggest,
+  getDemographics,
+  getCompetitors,
+  getOptimalStart,
 };
