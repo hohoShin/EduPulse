@@ -27,3 +27,17 @@ class DemandResponse(BaseModel):
     confidence_interval: ConfidenceInterval
     model_used: str
     prediction_date: datetime
+
+
+class ClosureRiskRequest(BaseModel):
+    course_name: str
+    start_date: date
+    field: Literal["coding", "security", "game", "art"]
+    model_name: Literal["xgboost", "prophet", "ensemble"] = "ensemble"
+
+
+class ClosureRiskResponse(BaseModel):
+    risk_score: float
+    risk_level: Literal["high", "medium", "low"]
+    contributing_factors: list[str]
+    recommendation: str

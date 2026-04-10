@@ -12,6 +12,17 @@ import threading
 import numpy as np
 import pandas as pd
 
+from edupulse.constants import (
+    ENROLLMENT_PATH as _ENROLLMENT_PATH,
+    SEARCH_TRENDS_PATH as _SEARCH_TRENDS_PATH,
+    JOB_POSTINGS_PATH as _JOB_POSTINGS_PATH,
+    CONSULTATION_PATH as _CONSULTATION_PATH,
+    STUDENT_PROFILES_PATH as _STUDENT_PROFILES_PATH,
+    WEB_LOGS_PATH as _WEB_LOGS_PATH,
+    CERT_EXAM_PATH as _CERT_EXAM_PATH,
+    COMPETITOR_PATH as _COMPETITOR_PATH,
+    SEASONAL_PATH as _SEASONAL_PATH,
+)
 from edupulse.model.base import BaseForecaster, PredictionResult
 from edupulse.model.xgboost_model import FEATURE_COLUMNS
 from edupulse.preprocessing.transformer import compute_field_encoding, compute_month_encoding
@@ -20,16 +31,6 @@ logger = logging.getLogger(__name__)
 
 # dependencies.py에서도 이 값을 참조한다.
 MODEL_VERSION = 1
-
-_ENROLLMENT_PATH = "edupulse/data/raw/internal/enrollment_history.csv"
-_SEARCH_TRENDS_PATH = "edupulse/data/raw/external/search_trends.csv"
-_JOB_POSTINGS_PATH = "edupulse/data/raw/external/job_postings.csv"
-_CONSULTATION_PATH = "edupulse/data/raw/internal/consultation_logs.csv"
-_STUDENT_PROFILES_PATH = "edupulse/data/raw/internal/student_profiles.csv"
-_WEB_LOGS_PATH = "edupulse/data/raw/internal/web_logs.csv"
-_CERT_EXAM_PATH = "edupulse/data/raw/external/cert_exam_schedule.csv"
-_COMPETITOR_PATH = "edupulse/data/raw/external/competitor_data.csv"
-_SEASONAL_PATH = "edupulse/data/raw/external/seasonal_events.csv"
 
 _model_cache: dict[str, BaseForecaster] = {}
 _model_mtime: dict[str, float] = {}
@@ -185,7 +186,7 @@ def _load_ensemble(version: int = MODEL_VERSION) -> "BaseForecaster":
     return ensemble
 
 
-def _load_csv_cached(path: str) -> pd.DataFrame | None:
+def load_csv_cached(path: str) -> pd.DataFrame | None:
     """CSV를 캐시에서 반환하거나 디스크에서 로딩 (스레드 안전).
 
     Args:
@@ -239,7 +240,7 @@ def build_features(course_name: str, start_date: str, field: str) -> pd.DataFram
     # 인덱스 기반 shift(N) = 정확히 N주 전 보장 (결측 주 있어도 일치)
     target_date_aligned = pd.Timestamp(start_date).to_period("W").start_time
     lag_1w, lag_2w, lag_4w, lag_8w, rolling_mean_4w = 0.0, 0.0, 0.0, 0.0, 0.0
-    enroll_raw = _load_csv_cached(_ENROLLMENT_PATH)
+    enroll_raw = load_csv_cached(_ENROLLMENT_PATH)
     if enroll_raw is not None:
         try:
             enroll_df = enroll_raw.copy()
@@ -271,7 +272,7 @@ def build_features(course_name: str, start_date: str, field: str) -> pd.DataFram
             logger.warning("등록 이력 로딩 실패, lag=0 사용: %s", e)
 
     search_volume = 0.0
-    search_raw = _load_csv_cached(_SEARCH_TRENDS_PATH)
+    search_raw = load_csv_cached(_SEARCH_TRENDS_PATH)
     if search_raw is not None:
         try:
             search_df = search_raw.copy()
@@ -284,7 +285,7 @@ def build_features(course_name: str, start_date: str, field: str) -> pd.DataFram
             logger.warning("검색 트렌드 로딩 실패, search_volume=0 사용: %s", e)
 
     job_count = 0.0
-    job_raw = _load_csv_cached(_JOB_POSTINGS_PATH)
+    job_raw = load_csv_cached(_JOB_POSTINGS_PATH)
     if job_raw is not None:
         try:
             job_df = job_raw.copy()
