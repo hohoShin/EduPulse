@@ -137,20 +137,76 @@ Droplet 사양 한계로 LSTM은 서버 자동 재학습에서 제외합니다.
 scp model/saved/lstm/model.pt user@your-droplet-ip:/app/model/saved/lstm/
 ```
 
-## 🚀 서버 배포 (Docker + Portainer)
+## 🚀 서버 배포 (GitHub Actions + Portainer + NPM)
 
-### 구성
+### 배포 아키텍처
 
 ```
-docker-compose.yml
-├── db        (PostgreSQL 16, port 5432)
-├── api       (FastAPI + uvicorn, port 8000)
-└── frontend  (React + nginx, port 3000)
+main push → GitHub Actions → GHCR 이미지 빌드/푸시
+                                    ↓
+서버 (DigitalOcean Droplet)
+├── Portainer      ← GHCR에서 이미지 pull
+│   ├── db         (PostgreSQL 16, 내부 전용)
+│   ├── api        (FastAPI, ghcr.io/hohoshin/edupulse-api)
+│   └── frontend   (React+nginx, ghcr.io/hohoshin/edupulse-frontend)
+└── Nginx Proxy Manager (NPM)
+    ├── yourdomain.com      → frontend:80
+    └── yourdomain.com/api  → api:8000
 ```
+
+### CI/CD — GitHub Actions
+
+`main` 브랜치에 push하면 GitHub Actions가 자동으로 Docker 이미지를 빌드하여 GHCR에 push합니다.
+
+- 워크플로우: `.github/workflows/build-images.yml`
+- 레지스트리: `ghcr.io/hohoshin/edupulse-api`, `ghcr.io/hohoshin/edupulse-frontend`
+- 태그: `latest` + commit SHA
+
+별도 시크릿 설정 불필요 — `GITHUB_TOKEN`이 자동으로 GHCR 인증을 처리합니다.
+
+### Docker Compose 파일
+
+| 파일 | 용도 |
+|------|------|
+| `docker-compose.yml` | 로컬 개발용 (소스에서 직접 빌드) |
+| `docker-compose.prod.yml` | 서버 배포용 (GHCR 이미지 pull) |
+
+### Portainer 스택 배포
+
+1. **proxy-net 네트워크 생성** (최초 1회, 이미 있으면 생략)
+   ```bash
+   docker network create proxy-net
+   ```
+
+2. **GHCR 로그인** (repo가 private인 경우)
+   ```bash
+   docker login ghcr.io -u hohoshin -p <PAT>
+   # PAT: GitHub > Settings > Developer settings > Personal access tokens (read:packages)
+   ```
+
+3. **Portainer > Stacks > Add Stack > Web editor**
+   - `docker-compose.prod.yml` 내용 붙여넣기
+   - Environment variables 설정 (아래 표 참고)
+   - Deploy the stack
+
+### NPM (Nginx Proxy Manager) 프록시 설정
+
+| 항목 | 설정 |
+|------|------|
+| Domain | `yourdomain.com` |
+| Forward Hostname | `frontend` |
+| Forward Port | `80` |
+| SSL | Let's Encrypt 활성화 |
+
+**Custom Location** (같은 Proxy Host 내):
+
+| 항목 | 설정 |
+|------|------|
+| Location | `/api` |
+| Forward Hostname | `api` |
+| Forward Port | `8000` |
 
 ### 환경변수
-
-`.env.example`을 복사하여 `.env` 파일을 생성하고 값을 설정합니다.
 
 | 변수 | 설명 | 필수 |
 |------|------|------|
@@ -161,6 +217,13 @@ docker-compose.yml
 | `VITE_ADAPTER` | 프론트엔드 어댑터 (mock/api) | - (기본: api) |
 
 전체 목록은 `.env.example` 참고.
+
+### 업데이트 배포
+
+`main`에 push하면 이미지가 자동 빌드됩니다. 서버에 적용하려면:
+
+- **Portainer**: Stack > Redeploy ("Pull latest images" 체크)
+- **CLI**: `docker compose -f docker-compose.prod.yml pull && docker compose -f docker-compose.prod.yml up -d`
 
 ### 모델 학습 및 버전 관리
 
@@ -174,13 +237,6 @@ python -m edupulse.model.train --model lstm --version 2
 scp -r edupulse/model/saved/lstm/v2/ user@droplet-ip:/app/edupulse/model/saved/lstm/v2/
 
 # 서버에서 새 버전 적용: Portainer에서 MODEL_VERSION=2로 변경 후 재시작
-```
-
-### 수동 배포 (deploy.sh)
-
-```bash
-./scripts/deploy.sh user@droplet-ip
-# git pull → docker compose up --build → alembic migrate → retrain dry-run
 ```
 
 ---
