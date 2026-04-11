@@ -130,9 +130,9 @@ async function getMarketingTiming({ field } = {}) {
   try {
     const startDate = futureDate(8);
     const [r1, r2, r3] = await Promise.all([
-      apiPost('/api/v1/marketing/timing', { course_name: '기본과정', start_date: startDate, demand_tier: 'HIGH' }),
-      apiPost('/api/v1/marketing/timing', { course_name: '기본과정', start_date: startDate, demand_tier: 'MID' }),
-      apiPost('/api/v1/marketing/timing', { course_name: '기본과정', start_date: startDate, demand_tier: 'LOW' }),
+      apiPost('/api/v1/marketing/timing', { course_name: '기본과정', start_date: startDate, demand_tier: 'High' }),
+      apiPost('/api/v1/marketing/timing', { course_name: '기본과정', start_date: startDate, demand_tier: 'Mid' }),
+      apiPost('/api/v1/marketing/timing', { course_name: '기본과정', start_date: startDate, demand_tier: 'Low' }),
     ]);
 
     return createUIState({
@@ -261,7 +261,13 @@ async function getDemandChart({ field } = {}) {
     const candidates = raw.top_candidates ?? [];
     const points = candidates
       .slice(0, 5)
-      .map((c) => createChartPoint(c.date, c.predicted_enrollment, null, null, c.demand_tier));
+      .map((c) => createChartPoint(
+        c.date,
+        c.predicted_enrollment,
+        c.confidence_interval?.upper ?? null,
+        c.confidence_interval?.lower ?? null,
+        c.demand_tier,
+      ));
 
     const state = points.length === 0 ? 'empty' : 'success';
     return createUIState({ state, data: points, isDemo: false });

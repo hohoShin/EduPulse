@@ -16,6 +16,8 @@ const PILLAR_COPY = {
   전략_기획: '전략 기획',
 };
 
+const SHOW_DEMO_SWITCHER = import.meta.env.DEV && import.meta.env.VITE_ADAPTER !== 'real';
+
 const Dashboard = () => {
   const [demoState, setDemoState] = useState('success');
   const [field, setField] = useState('coding');
@@ -160,7 +162,7 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {import.meta.env.DEV && renderDemoSwitcher()}
+      {SHOW_DEMO_SWITCHER && renderDemoSwitcher()}
 
       <section className="dashboard-priority-panel">
         <div className="dashboard-priority-panel__header">
