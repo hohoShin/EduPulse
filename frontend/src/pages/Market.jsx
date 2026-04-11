@@ -110,8 +110,8 @@ const Market = () => {
       <div className="page-header">
         <div>
           <h1 className="page-title">
-            전략 기획 보드
-            <span className="badge">시장 분석</span>
+            시장 분석
+            <span className="badge">전략 기획 보드</span>
           </h1>
           <p className="page-subtitle">타겟 수강생 파악부터 경쟁 동향을 거쳐 최적의 개강일을 결정하는 전략 기획 보드입니다.</p>
         </div>
