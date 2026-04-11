@@ -1,10 +1,12 @@
 """시뮬레이션 API 요청/응답 스키마."""
+
 from datetime import date
 from typing import Literal, Optional
 
 from pydantic import BaseModel, model_validator
 
 from edupulse.constants import DemandTier
+from edupulse.api.schemas.demand import ConfidenceInterval
 
 
 class StartDateCandidate(BaseModel):
@@ -12,6 +14,7 @@ class StartDateCandidate(BaseModel):
     predicted_enrollment: int
     demand_tier: DemandTier
     composite_score: float
+    confidence_interval: Optional[ConfidenceInterval] = None
 
 
 class OptimalStartRequest(BaseModel):
@@ -27,7 +30,9 @@ class OptimalStartRequest(BaseModel):
         if delta < 0:
             raise ValueError("search_window_end는 search_window_start 이후여야 합니다.")
         if delta > 112:
-            raise ValueError("search_window_end - search_window_start 는 최대 16주(112일)입니다.")
+            raise ValueError(
+                "search_window_end - search_window_start 는 최대 16주(112일)입니다."
+            )
         return self
 
 

@@ -47,10 +47,6 @@ const DemandChart = ({ data = [] }) => {
           }}
         >
           <defs>
-            <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="var(--color-primary)" stopOpacity={0.2}/>
-              <stop offset="95%" stopColor="var(--color-primary)" stopOpacity={0}/>
-            </linearGradient>
             <linearGradient id="colorRange" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="var(--color-info-border)" stopOpacity={0.4}/>
               <stop offset="100%" stopColor="var(--color-info-border)" stopOpacity={0.12}/>
@@ -93,7 +89,7 @@ const DemandChart = ({ data = [] }) => {
           
           <Area 
             type="monotone" 
-            dataKey="upper" 
+            dataKey="range" 
             stroke="none" 
             fill="url(#colorRange)" 
             legendType="none"
@@ -101,21 +97,22 @@ const DemandChart = ({ data = [] }) => {
           />
           <Area 
             type="monotone" 
-            dataKey="lower" 
-            stroke="none" 
-            fill="var(--color-surface)" 
-            legendType="none"
-            tooltipType="none"
-          />
-          
-          <Area 
-            type="monotone" 
             dataKey="value" 
             name="예상 수요" 
             stroke="var(--color-primary)" 
             strokeWidth={3}
-            fill="url(#colorValue)"
+            fill="none"
             activeDot={{ r: 6, strokeWidth: 0, fill: 'var(--color-primary)' }} 
+          />
+          <Line 
+            type="monotone" 
+            dataKey="upper" 
+            stroke="var(--color-surface)" 
+            strokeWidth={4}
+            dot={false}
+            activeDot={false}
+            legendType="none"
+            tooltipType="none"
           />
           <Line 
             type="monotone" 
@@ -126,6 +123,16 @@ const DemandChart = ({ data = [] }) => {
             strokeDasharray="4 4"
             dot={false}
             activeDot={false}
+          />
+          <Line 
+            type="monotone" 
+            dataKey="lower" 
+            stroke="var(--color-surface)" 
+            strokeWidth={4}
+            dot={false}
+            activeDot={false}
+            legendType="none"
+            tooltipType="none"
           />
           <Line 
             type="monotone" 
