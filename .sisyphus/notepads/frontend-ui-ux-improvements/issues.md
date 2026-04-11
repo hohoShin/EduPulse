@@ -1,0 +1,8 @@
+- **Marketing.jsx Crash Issue**: Browser QA revealed a React crash ("Objects are not valid as a React child") because `leadData.recommendations` contained double-nested objects. This happens when the Playwright router interceptor returns mock objects `{ text: "...", link: "..." }`, which the `realAdapter`'s `transformLeadConversionResponse` then mistakenly wraps again via `.map(text => ({ text, link: null }))`. The UI was updated to defensively unwrap `rec.text.text` and `rec.text.link` if such nested mock data surfaces, and the element `key` was updated to use the array index + text slice to ensure uniqueness.
+
+### Task 7 Null Safety Bug
+* **Issue:** Operator-facing response brief in `Operations.jsx` rendered "null명" when the API adapter returned `predicted_enrollment` or `min_enrollment` as null.
+* **Fix:** Implemented a null-safe evaluation rule in the narrative text. If exact counts are missing, the UI gracefully degrades to a generalized fallback narrative ("폐강 위험이 높은 것으로 분석되었습니다" or "정상 개강이 가능한 것으로 분석되었습니다") instead of surfacing undefined string templates.
+
+
+- [2026-04-11 11:42] Final verification remediation: fixed the remaining reject reasons in-place by wiring `AlertPanel` actions to real route targets, surfacing the simulator comparison framing in visible copy, and teaching Marketing/Operations/Market to treat adapter `state: 'error'` UIState payloads as real page errors instead of assuming exceptions only.

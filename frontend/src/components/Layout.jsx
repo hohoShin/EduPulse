@@ -45,114 +45,79 @@ const Layout = () => {
         <nav style={{ padding: 'var(--space-4)', flex: 1, display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
           <NavLink
             to="/"
-            style={({ isActive }) => ({
-              display: 'flex',
-              alignItems: 'center',
-              gap: 'var(--space-3)',
-              padding: 'var(--space-3) var(--space-4)',
-              borderRadius: 'var(--radius-md)',
-              textDecoration: 'none',
-              color: isActive ? 'var(--color-sidebar-text-active)' : 'var(--color-sidebar-text)',
-              backgroundColor: isActive ? 'var(--color-sidebar-hover)' : 'transparent',
-              fontWeight: isActive ? '600' : '500',
-              transition: 'all var(--transition-fast)',
-              borderLeft: isActive ? '3px solid var(--color-primary)' : '3px solid transparent'
-            })}
+            className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="3" width="7" height="7"></rect>
-              <rect x="14" y="3" width="7" height="7"></rect>
-              <rect x="14" y="14" width="7" height="7"></rect>
-              <rect x="3" y="14" width="7" height="7"></rect>
-            </svg>
-            대시보드
+            <div className="nav-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="7" height="7"></rect>
+                <rect x="14" y="3" width="7" height="7"></rect>
+                <rect x="14" y="14" width="7" height="7"></rect>
+                <rect x="3" y="14" width="7" height="7"></rect>
+              </svg>
+            </div>
+            <div className="nav-content">
+              <span className="nav-title">대시보드</span>
+              <span className="nav-desc">통합 수요 예측 및 현황</span>
+            </div>
           </NavLink>
           <NavLink
             to="/simulator"
-            style={({ isActive }) => ({
-              display: 'flex',
-              alignItems: 'center',
-              gap: 'var(--space-3)',
-              padding: 'var(--space-3) var(--space-4)',
-              borderRadius: 'var(--radius-md)',
-              textDecoration: 'none',
-              color: isActive ? 'var(--color-sidebar-text-active)' : 'var(--color-sidebar-text)',
-              backgroundColor: isActive ? 'var(--color-sidebar-hover)' : 'transparent',
-              fontWeight: isActive ? '600' : '500',
-              transition: 'all var(--transition-fast)',
-              borderLeft: isActive ? '3px solid var(--color-primary)' : '3px solid transparent'
-            })}
+            className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polygon points="5 3 19 12 5 21 5 3"></polygon>
-            </svg>
-            시뮬레이터
+            <div className="nav-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="5 3 19 12 5 21 5 3"></polygon>
+              </svg>
+            </div>
+            <div className="nav-content">
+              <span className="nav-title">시뮬레이터</span>
+              <span className="nav-desc">신규 과정 개설 수요 검증</span>
+            </div>
           </NavLink>
           <NavLink
             to="/marketing"
-            style={({ isActive }) => ({
-              display: 'flex',
-              alignItems: 'center',
-              gap: 'var(--space-3)',
-              padding: 'var(--space-3) var(--space-4)',
-              borderRadius: 'var(--radius-md)',
-              textDecoration: 'none',
-              color: isActive ? 'var(--color-sidebar-text-active)' : 'var(--color-sidebar-text)',
-              backgroundColor: isActive ? 'var(--color-sidebar-hover)' : 'transparent',
-              fontWeight: isActive ? '600' : '500',
-              transition: 'all var(--transition-fast)',
-              borderLeft: isActive ? '3px solid var(--color-primary)' : '3px solid transparent'
-            })}
+            className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-            </svg>
-            마케팅 분석
+            <div className="nav-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+              </svg>
+            </div>
+            <div className="nav-content">
+              <span className="nav-title">마케팅 분석</span>
+              <span className="nav-desc">광고 집행 타이밍 최적화</span>
+            </div>
           </NavLink>
           <NavLink
             to="/operations"
-            style={({ isActive }) => ({
-              display: 'flex',
-              alignItems: 'center',
-              gap: 'var(--space-3)',
-              padding: 'var(--space-3) var(--space-4)',
-              borderRadius: 'var(--radius-md)',
-              textDecoration: 'none',
-              color: isActive ? 'var(--color-sidebar-text-active)' : 'var(--color-sidebar-text)',
-              backgroundColor: isActive ? 'var(--color-sidebar-hover)' : 'transparent',
-              fontWeight: isActive ? '600' : '500',
-              transition: 'all var(--transition-fast)',
-              borderLeft: isActive ? '3px solid var(--color-primary)' : '3px solid transparent'
-            })}
+            className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="3"></circle>
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-            </svg>
-            운영 관리
+            <div className="nav-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="3"></circle>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+              </svg>
+            </div>
+            <div className="nav-content">
+              <span className="nav-title">운영 관리</span>
+              <span className="nav-desc">강사 및 강의실 배정</span>
+            </div>
           </NavLink>
           <NavLink
             to="/market"
-            style={({ isActive }) => ({
-              display: 'flex',
-              alignItems: 'center',
-              gap: 'var(--space-3)',
-              padding: 'var(--space-3) var(--space-4)',
-              borderRadius: 'var(--radius-md)',
-              textDecoration: 'none',
-              color: isActive ? 'var(--color-sidebar-text-active)' : 'var(--color-sidebar-text)',
-              backgroundColor: isActive ? 'var(--color-sidebar-hover)' : 'transparent',
-              fontWeight: isActive ? '600' : '500',
-              transition: 'all var(--transition-fast)',
-              borderLeft: isActive ? '3px solid var(--color-primary)' : '3px solid transparent'
-            })}
+            className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="18" y1="20" x2="18" y2="10"></line>
-              <line x1="12" y1="20" x2="12" y2="4"></line>
-              <line x1="6" y1="20" x2="6" y2="14"></line>
-            </svg>
-            시장 분석
+            <div className="nav-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="20" x2="18" y2="10"></line>
+                <line x1="12" y1="20" x2="12" y2="4"></line>
+                <line x1="6" y1="20" x2="6" y2="14"></line>
+              </svg>
+            </div>
+            <div className="nav-content">
+              <span className="nav-title">시장 분석</span>
+              <span className="nav-desc">검색 트렌드 및 외부 지표</span>
+            </div>
           </NavLink>
         </nav>
 
@@ -184,10 +149,25 @@ const Layout = () => {
           boxShadow: 'var(--shadow-sm)',
           zIndex: 5
         }}>
-          <div>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: '600', color: 'var(--color-text-main)' }}>
-              EduPulse Console
-            </h2>
+          <div className="header-pillars">
+            <div className="pillar-item">
+              <div className="pillar-dot"></div>
+              <div>
+                운영 효율화 <span className="pillar-desc">데이터 기반 최적화</span>
+              </div>
+            </div>
+            <div className="pillar-item">
+              <div className="pillar-dot"></div>
+              <div>
+                마케팅·매출 연계 <span className="pillar-desc">수요 맞춤형 전환</span>
+              </div>
+            </div>
+            <div className="pillar-item">
+              <div className="pillar-dot"></div>
+              <div>
+                전략 기획 <span className="pillar-desc">시장 인사이트 도출</span>
+              </div>
+            </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
             <button style={{
