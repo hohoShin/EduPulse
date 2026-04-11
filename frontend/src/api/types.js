@@ -66,7 +66,7 @@
  * @typedef {Object} ScenarioItem
  * @property {string} scenario
  * @property {number} predicted_enrollment
- * @property {'HIGH'|'MID'|'LOW'} demand_tier
+ * @property {'High'|'Mid'|'Low'} demand_tier
  * @property {number} estimated_revenue
  */
 
@@ -82,7 +82,7 @@
  * @property {string} courseName
  * @property {string} field
  * @property {number} predictedCount
- * @property {'HIGH'|'MID'|'LOW'} demandTier
+ * @property {'High'|'Mid'|'Low'} demandTier
  * @property {{ lower: number, upper: number }} confidenceInterval
  * @property {string} modelUsed
  * @property {string} predictionDate
@@ -118,7 +118,7 @@
 /**
  * @typedef {Object} MarketingTimingData
  * @property {string} courseName
- * @property {'HIGH'|'MID'|'LOW'} demandTier
+ * @property {'High'|'Mid'|'Low'} demandTier
  * @property {number} adWeeksBefore
  * @property {number} earlybirdDays
  * @property {number} discountRate
@@ -186,7 +186,7 @@
  * @typedef {Object} OptimalStartCandidate
  * @property {string} date
  * @property {number} predictedEnrollment
- * @property {'HIGH'|'MID'|'LOW'} demandTier
+ * @property {'High'|'Mid'|'Low'} demandTier
  * @property {number} compositeScore
  */
 
