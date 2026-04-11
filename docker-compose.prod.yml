@@ -1,0 +1,45 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-edupulse}
+      POSTGRES_USER: ${POSTGRES_USER:-edupulse}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-edupulse}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U edupulse -d edupulse"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    image: ghcr.io/hohoshin/edupulse-api:latest
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-edupulse}:${POSTGRES_PASSWORD:-edupulse}@db:5432/${POSTGRES_DB:-edupulse}
+      API_HOST: "0.0.0.0"
+      API_PORT: "8000"
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
+      MODEL_VERSION: ${MODEL_VERSION:-1}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - default
+      - proxy-net
+
+  frontend:
+    image: ghcr.io/hohoshin/edupulse-frontend:latest
+    restart: unless-stopped
+    networks:
+      - default
+      - proxy-net
+
+volumes:
+  postgres_data:
+
+networks:
+  proxy-net:
+    external: true
