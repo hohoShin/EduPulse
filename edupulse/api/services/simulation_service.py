@@ -1,4 +1,5 @@
 """시뮬레이션 비즈니스 로직 서비스 레이어."""
+
 import logging
 from datetime import date, timedelta
 
@@ -57,14 +58,22 @@ def find_optimal_start_dates(
 
     # 분야별 채용 공고 평균 (정규화 기준)
     job_avg = 1.0
-    if job_df is not None and "field" in job_df.columns and "job_count" in job_df.columns:
+    if (
+        job_df is not None
+        and "field" in job_df.columns
+        and "job_count" in job_df.columns
+    ):
         field_jobs = job_df[job_df["field"] == field]
         if len(field_jobs) > 0:
             job_avg = max(field_jobs["job_count"].mean(), 1.0)
 
     # 분야별 경쟁사 개강 평균 (경쟁 강도 계산용)
     comp_avg = 1.0
-    if comp_df is not None and "field" in comp_df.columns and "competitor_openings" in comp_df.columns:
+    if (
+        comp_df is not None
+        and "field" in comp_df.columns
+        and "competitor_openings" in comp_df.columns
+    ):
         field_comp = comp_df[comp_df["field"] == field]
         if len(field_comp) > 0:
             comp_avg = max(field_comp["competitor_openings"].mean(), 1.0)
@@ -72,10 +81,15 @@ def find_optimal_start_dates(
     candidates = []
     for monday in mondays:
         date_str = monday.isoformat()
+        confidence_interval = None
         try:
             result = predict_demand(course_name, date_str, field)
             enrollment = result.predicted_enrollment
             tier = result.demand_tier
+            confidence_interval = {
+                "lower": result.confidence_lower,
+                "upper": result.confidence_upper,
+            }
         except Exception as exc:
             logger.warning("수요 예측 실패 (%s): %s — 기본값 사용", date_str, exc)
             enrollment = 0
@@ -89,36 +103,75 @@ def find_optimal_start_dates(
 
                 jdf = job_df.copy()
                 jdf["date"] = pd.to_datetime(jdf["date"])
-                prior = jdf[(jdf["field"] == field) & (jdf["date"] < pd.Timestamp(date_str))]
+                prior = jdf[
+                    (jdf["field"] == field) & (jdf["date"] < pd.Timestamp(date_str))
+                ]
                 if len(prior) > 0:
-                    job_score = float(prior.sort_values("date").iloc[-1]["job_count"]) / job_avg
+                    job_score = (
+                        float(prior.sort_values("date").iloc[-1]["job_count"]) / job_avg
+                    )
             except Exception as exc:
                 logger.debug("job_score 계산 실패: %s", exc)
 
         # 경쟁 강도 낮을수록 유리 (low_competition = 1 - 포화도)
         low_competition = 1.0
+        competitor_count = None
         if comp_df is not None and "date" in comp_df.columns:
             try:
                 import pandas as pd
 
                 cdf = comp_df.copy()
                 cdf["date"] = pd.to_datetime(cdf["date"])
-                prior_c = cdf[(cdf["field"] == field) & (cdf["date"] < pd.Timestamp(date_str))]
+                prior_c = cdf[
+                    (cdf["field"] == field) & (cdf["date"] < pd.Timestamp(date_str))
+                ]
                 if len(prior_c) > 0:
-                    current_openings = float(prior_c.sort_values("date").iloc[-1]["competitor_openings"])
+                    current_openings = float(
+                        prior_c.sort_values("date").iloc[-1]["competitor_openings"]
+                    )
+                    competitor_count = int(current_openings)
                     saturation = min(current_openings / comp_avg, 2.0) / 2.0
                     low_competition = 1.0 - saturation
             except Exception as exc:
                 logger.debug("low_competition 계산 실패: %s", exc)
 
-        candidates.append({
-            "date": monday,
-            "predicted_enrollment": enrollment,
-            "demand_tier": tier,
-            "_raw_enrollment": float(enrollment),
-            "_job_score": job_score,
-            "_low_competition": low_competition,
-        })
+        # 검색 트렌드: 최근 4주 vs 이전 4주 비교
+        search_trend = None
+        search_df = load_csv_cached(SEARCH_TRENDS_PATH)
+        if search_df is not None and "date" in search_df.columns:
+            try:
+                import pandas as pd
+
+                sdf = search_df.copy()
+                sdf["date"] = pd.to_datetime(sdf["date"])
+                prior_s = sdf[
+                    (sdf["field"] == field) & (sdf["date"] < pd.Timestamp(date_str))
+                ].sort_values("date")
+                if len(prior_s) >= 8:
+                    recent_4w = float(prior_s.tail(4)["search_volume"].mean())
+                    prev_4w = float(prior_s.iloc[-8:-4]["search_volume"].mean())
+                    if recent_4w > prev_4w * 1.05:
+                        search_trend = "상승"
+                    elif recent_4w < prev_4w * 0.95:
+                        search_trend = "하락"
+                    else:
+                        search_trend = "안정"
+            except Exception as exc:
+                logger.debug("search_trend 계산 실패: %s", exc)
+
+        candidates.append(
+            {
+                "date": monday,
+                "predicted_enrollment": enrollment,
+                "demand_tier": tier,
+                "_raw_enrollment": float(enrollment),
+                "_job_score": job_score,
+                "_low_competition": low_competition,
+                "confidence_interval": confidence_interval,
+                "competitor_count": competitor_count,
+                "search_trend": search_trend,
+            }
+        )
 
     if not candidates:
         return []
@@ -127,7 +180,9 @@ def find_optimal_start_dates(
     max_enroll = max(c["_raw_enrollment"] for c in candidates) or 1.0
     for c in candidates:
         norm_enroll = c["_raw_enrollment"] / max_enroll
-        c["composite_score"] = norm_enroll * 0.5 + c["_job_score"] * 0.3 + c["_low_competition"] * 0.2
+        c["composite_score"] = (
+            norm_enroll * 0.5 + c["_job_score"] * 0.3 + c["_low_competition"] * 0.2
+        )
         del c["_raw_enrollment"], c["_job_score"], c["_low_competition"]
 
     # composite_score 내림차순 정렬 후 상위 5개
@@ -193,7 +248,9 @@ def simulate_new_course(
         if comp_df is not None and "date" in comp_df.columns:
             cdf = comp_df.copy()
             cdf["date"] = pd.to_datetime(cdf["date"])
-            prior = cdf[(cdf["field"] == field) & (cdf["date"] <= pd.Timestamp(date_str))]
+            prior = cdf[
+                (cdf["field"] == field) & (cdf["date"] <= pd.Timestamp(date_str))
+            ]
             if len(prior) > 0:
                 last = prior.sort_values("date").iloc[-1]
                 comp_openings = int(last.get("competitor_openings", 0))
@@ -252,6 +309,7 @@ def get_demographics_breakdown(field: str) -> dict:
     if profile_df is None or len(profile_df) == 0:
         return {
             "field": field,
+            "total_students": None,
             "age_distribution": age_distribution,
             "purpose_distribution": purpose_distribution,
             "trend": trend,
@@ -261,6 +319,7 @@ def get_demographics_breakdown(field: str) -> dict:
     if len(field_df) == 0:
         return {
             "field": field,
+            "total_students": None,
             "age_distribution": age_distribution,
             "purpose_distribution": purpose_distribution,
             "trend": trend,
@@ -311,8 +370,15 @@ def get_demographics_breakdown(field: str) -> dict:
             logger.debug("트렌드 계산 실패: %s", exc)
             trend = "알 수 없음"
 
+    # 총 수강생 수 계산
+    if "enrollment_count" in field_df.columns:
+        total_students = int(field_df["enrollment_count"].sum())
+    else:
+        total_students = len(field_df)
+
     return {
         "field": field,
+        "total_students": total_students,
         "age_distribution": age_distribution,
         "purpose_distribution": purpose_distribution,
         "trend": trend,
@@ -339,9 +405,11 @@ def get_competitor_analysis(field: str) -> dict:
     default = {
         "field": field,
         "competitor_openings": 0,
-        "competitor_avg_price": 0.0,
+        "competitor_avg_price": 0,
         "saturation_index": 0.0,
         "recommendation": "데이터 부족으로 분석 불가. 추후 데이터 수집 후 재분석 권장.",
+        "previous_openings": None,
+        "previous_avg_price": None,
     }
 
     if comp_df is None or len(comp_df) == 0:
@@ -357,11 +425,23 @@ def get_competitor_analysis(field: str) -> dict:
 
     # 현재값 (가장 최근 레코드)
     last_row = field_df.iloc[-1]
-    current_openings = int(last_row.get("competitor_openings", 0)) if "competitor_openings" in field_df.columns else 0
-    current_avg_price = float(last_row.get("competitor_avg_price", 0.0)) if "competitor_avg_price" in field_df.columns else 0.0
+    current_openings = (
+        int(last_row.get("competitor_openings", 0))
+        if "competitor_openings" in field_df.columns
+        else 0
+    )
+    current_avg_price = (
+        float(last_row.get("competitor_avg_price", 0.0))
+        if "competitor_avg_price" in field_df.columns
+        else 0.0
+    )
 
     # 평균값 (전체 기간)
-    avg_openings = float(field_df["competitor_openings"].mean()) if "competitor_openings" in field_df.columns else 1.0
+    avg_openings = (
+        float(field_df["competitor_openings"].mean())
+        if "competitor_openings" in field_df.columns
+        else 1.0
+    )
     avg_openings = max(avg_openings, 1.0)
 
     # 포화도 지수 = 현재 개강 수 / 평균 개강 수 (최대 2.0으로 상한)
@@ -369,18 +449,38 @@ def get_competitor_analysis(field: str) -> dict:
 
     # 추천 전략 생성
     if saturation_index >= 1.5:
-        recommendation = "시장 포화 상태입니다. 차별화된 커리큘럼 또는 틈새 분야 집중을 권장합니다."
+        recommendation = (
+            "시장 포화 상태입니다. 차별화된 커리큘럼 또는 틈새 분야 집중을 권장합니다."
+        )
     elif saturation_index >= 1.0:
-        recommendation = "경쟁이 활발합니다. 가격 경쟁력 또는 강사 전문성 강화를 권장합니다."
+        recommendation = (
+            "경쟁이 활발합니다. 가격 경쟁력 또는 강사 전문성 강화를 권장합니다."
+        )
     elif saturation_index >= 0.5:
-        recommendation = "적정 경쟁 수준입니다. 마케팅 강화로 시장 점유율 확대를 노려볼 수 있습니다."
+        recommendation = (
+            "적정 경쟁 수준입니다. 마케팅 강화로 시장 점유율 확대를 노려볼 수 있습니다."
+        )
     else:
-        recommendation = "경쟁이 낮은 블루오션입니다. 선점 전략으로 적극적인 개강을 권장합니다."
+        recommendation = (
+            "경쟁이 낮은 블루오션입니다. 선점 전략으로 적극적인 개강을 권장합니다."
+        )
+
+    # 이전값 (두 번째로 최근 레코드)
+    previous_openings = None
+    previous_avg_price = None
+    if len(field_df) >= 2:
+        prev_row = field_df.iloc[-2]
+        if "competitor_openings" in field_df.columns:
+            previous_openings = int(prev_row["competitor_openings"])
+        if "competitor_avg_price" in field_df.columns:
+            previous_avg_price = int(prev_row["competitor_avg_price"])
 
     return {
         "field": field,
         "competitor_openings": current_openings,
-        "competitor_avg_price": current_avg_price,
+        "competitor_avg_price": int(current_avg_price),
         "saturation_index": saturation_index,
         "recommendation": recommendation,
+        "previous_openings": previous_openings,
+        "previous_avg_price": previous_avg_price,
     }

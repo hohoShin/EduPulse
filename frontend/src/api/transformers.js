@@ -10,30 +10,6 @@
 import { createStatusItem, createSimulatorResult } from './viewModels.js';
 
 // ---------------------------------------------------------------------------
-// Case conversion utilities (요청 body 전송용)
-// ---------------------------------------------------------------------------
-
-function camelToSnakeStr(str) {
-  return str.replace(/([A-Z])/g, (c) => `_${c.toLowerCase()}`);
-}
-
-/**
- * Recursively convert all object keys from camelCase to snake_case.
- * Used to convert frontend input → backend request body.
- * @param {*} obj
- * @returns {*}
- */
-export function camelToSnake(obj) {
-  if (obj === null || obj === undefined) return obj;
-  if (Array.isArray(obj)) return obj.map(camelToSnake);
-  if (typeof obj !== 'object') return obj;
-
-  return Object.fromEntries(
-    Object.entries(obj).map(([k, v]) => [camelToSnakeStr(k), camelToSnake(v)]),
-  );
-}
-
-// ---------------------------------------------------------------------------
 // Endpoint-specific transform functions
 // ---------------------------------------------------------------------------
 
@@ -88,7 +64,7 @@ export function transformSimulateResponse(raw, courseName = '', field = '') {
 /**
  * Transform POST /api/v1/marketing/lead-conversion → mock fixture 형태.
  *
- * Backend: { field, estimated_conversions, conversion_rate_trend: float[],
+ * Backend: { field, estimated_conversions,
  *            consultation_count_trend: float[], recommendations: string[] }
  * Fixture: snake_case + recommendations: {text, link}[] + previous_conversions 등 추가 필드
  */
@@ -96,10 +72,8 @@ export function transformLeadConversionResponse(raw) {
   return {
     field: raw.field,
     estimated_conversions: raw.estimated_conversions,
-    previous_conversions: null,
-    target_conversion_rate: null,
-    current_demand_tier: null,
-    conversion_rate_trend: raw.conversion_rate_trend ?? [],
+    previous_conversions: raw.previous_conversions ?? null,
+    current_demand_tier: raw.current_demand_tier ?? null,
     consultation_count_trend: raw.consultation_count_trend ?? [],
     recommendations: (raw.recommendations ?? []).map((text) => ({ text, link: null })),
   };
@@ -115,9 +89,9 @@ export function transformClosureRiskResponse(raw) {
   return {
     risk_score: raw.risk_score,
     risk_level: raw.risk_level,
-    risk_trend: null,
-    predicted_enrollment: null,
-    min_enrollment: null,
+    risk_trend: raw.risk_trend ?? null,
+    predicted_enrollment: raw.predicted_enrollment ?? null,
+    min_enrollment: raw.min_enrollment ?? null,
     contributing_factors: raw.contributing_factors ?? [],
     recommendation: raw.recommendation,
   };
@@ -133,9 +107,9 @@ export function transformCompetitorResponse(raw) {
   return {
     field: raw.field,
     competitor_openings: raw.competitor_openings,
-    previous_openings: null,
+    previous_openings: raw.previous_openings ?? null,
     competitor_avg_price: raw.competitor_avg_price,
-    previous_avg_price: null,
+    previous_avg_price: raw.previous_avg_price ?? null,
     saturation_index: raw.saturation_index,
     recommendation: raw.recommendation,
   };
@@ -199,12 +173,3 @@ export function transformOptimalStartResponse(raw) {
   };
 }
 
-/**
- * Transform POST /api/v1/demand/predict → snake_case pass-through.
- *
- * Backend: { course_name, field, predicted_enrollment, demand_tier,
- *            confidence_interval: {lower, upper}, model_used, prediction_date }
- */
-export function transformDemandResponse(raw) {
-  return raw;
-}

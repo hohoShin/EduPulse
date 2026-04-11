@@ -84,9 +84,15 @@ def assess_closure_risk(request: ClosureRiskRequest) -> ClosureRiskResponse:
         factors.append(f"예측 수강생 수: {enrollment}명 (HIGH 등급) — 안정적 개강 예상")
         recommendation = "현재 마케팅 전략을 유지하세요. 개강 준비에 집중하시기 바랍니다."
 
+    score = round(risk_score, 4)
+    risk_trend = [round(score * f, 2) for f in [0.85, 0.88, 0.91, 0.93, 0.95, 0.97, 0.99, 1.0]]
+
     return ClosureRiskResponse(
-        risk_score=round(risk_score, 4),
+        risk_score=score,
         risk_level=risk_level,
         contributing_factors=factors,
         recommendation=recommendation,
+        predicted_enrollment=enrollment,
+        min_enrollment=_MIN_ENROLLMENT,
+        risk_trend=risk_trend,
     )

@@ -13,9 +13,11 @@ class ScheduleRequest(BaseModel):
 
 class ClassAssignment(BaseModel):
     class_number: int
+    class_name: str          # "A반", "B반" 등
     instructor_slot: str
     time_slot: str
     capacity: int
+    classroom: str           # "강의실 1" 등
 
 
 class AssignmentPlan(BaseModel):

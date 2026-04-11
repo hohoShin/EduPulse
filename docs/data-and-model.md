@@ -394,7 +394,7 @@ conversion_rate = clip(0.15 + 0.05 × (enrollment / max_enrollment) + noise, 0.0
 
 ### 3.5 학생 프로필 (`internal_generator.py`)
 
-**설계 의도:** 분야별 수강생 연령대 분포와 수강 목적 분포를 Dirichlet 분포로 시뮬레이션한다. 파생 피처 `age_group_diversity`는 transformer.py에서 Shannon 엔트로피로 계산된다.
+**설계 의도:** 분야별 수강생 연령대 분포와 수강 목적 분포를 Dirichlet 분포로 시뮬레이션한다.
 
 **스키마:**
 

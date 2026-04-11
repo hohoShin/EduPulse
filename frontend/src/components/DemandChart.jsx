@@ -1,4 +1,3 @@
-import React from 'react';
 import {
   ComposedChart,
   Line,
@@ -14,17 +13,7 @@ import {
 const DemandChart = ({ data = [] }) => {
   if (!data || data.length === 0) {
     return (
-      <div style={{ 
-        height: '350px', 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'center', 
-        backgroundColor: 'var(--color-surface-hover)', 
-        borderRadius: 'var(--radius-md)', 
-        border: '1px dashed var(--color-border)', 
-        color: 'var(--color-text-muted)',
-        fontSize: '0.875rem'
-      }}>
+      <div className="chart-empty-state">
         차트 데이터가 없습니다.
       </div>
     );
@@ -37,8 +26,17 @@ const DemandChart = ({ data = [] }) => {
   }));
 
   return (
-    <div style={{ width: '100%', height: '350px' }}>
-      <ResponsiveContainer width="100%" height="100%">
+    <div className="chart-surface">
+      <div className="chart-surface__summary">
+        <div>
+          <p className="chart-surface__eyebrow">예측 해석 가이드</p>
+          <p className="chart-surface__description">
+            실선은 예상 수요, 점선은 예측 범위를 뜻합니다. 상·하한 간격이 넓을수록 운영과 마케팅 대응 폭을 더 여유 있게 잡아야 합니다.
+          </p>
+        </div>
+      </div>
+      <div className="chart-surface__canvas">
+        <ResponsiveContainer width="100%" height="100%">
         <ComposedChart
           data={formattedData}
           margin={{
@@ -49,13 +47,9 @@ const DemandChart = ({ data = [] }) => {
           }}
         >
           <defs>
-            <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="var(--color-primary)" stopOpacity={0.2}/>
-              <stop offset="95%" stopColor="var(--color-primary)" stopOpacity={0}/>
-            </linearGradient>
             <linearGradient id="colorRange" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#93C5FD" stopOpacity={0.3}/>
-              <stop offset="100%" stopColor="#93C5FD" stopOpacity={0.1}/>
+              <stop offset="0%" stopColor="var(--color-info-border)" stopOpacity={0.4}/>
+              <stop offset="100%" stopColor="var(--color-info-border)" stopOpacity={0.12}/>
             </linearGradient>
           </defs>
           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-border)" />
@@ -89,13 +83,13 @@ const DemandChart = ({ data = [] }) => {
             itemStyle={{ color: 'var(--color-text-main)', fontSize: '0.875rem' }}
           />
           <Legend 
-            wrapperStyle={{ paddingTop: '20px' }}
+            wrapperStyle={{ paddingTop: '20px', fontSize: '12px', color: 'var(--color-text-muted)' }}
             iconType="circle"
           />
           
           <Area 
             type="monotone" 
-            dataKey="upper" 
+            dataKey="range" 
             stroke="none" 
             fill="url(#colorRange)" 
             legendType="none"
@@ -103,27 +97,28 @@ const DemandChart = ({ data = [] }) => {
           />
           <Area 
             type="monotone" 
-            dataKey="lower" 
-            stroke="none" 
-            fill="var(--color-surface)" 
-            legendType="none"
-            tooltipType="none"
-          />
-          
-          <Area 
-            type="monotone" 
             dataKey="value" 
             name="예상 수요" 
             stroke="var(--color-primary)" 
             strokeWidth={3}
-            fill="url(#colorValue)"
+            fill="none"
             activeDot={{ r: 6, strokeWidth: 0, fill: 'var(--color-primary)' }} 
           />
           <Line 
             type="monotone" 
             dataKey="upper" 
+            stroke="var(--color-surface)" 
+            strokeWidth={4}
+            dot={false}
+            activeDot={false}
+            legendType="none"
+            tooltipType="none"
+          />
+          <Line 
+            type="monotone" 
+            dataKey="upper" 
             name="상한선" 
-            stroke="#93C5FD" 
+            stroke="var(--color-info-border)" 
             strokeWidth={2}
             strokeDasharray="4 4"
             dot={false}
@@ -132,15 +127,26 @@ const DemandChart = ({ data = [] }) => {
           <Line 
             type="monotone" 
             dataKey="lower" 
+            stroke="var(--color-surface)" 
+            strokeWidth={4}
+            dot={false}
+            activeDot={false}
+            legendType="none"
+            tooltipType="none"
+          />
+          <Line 
+            type="monotone" 
+            dataKey="lower" 
             name="하한선" 
-            stroke="#93C5FD" 
+            stroke="var(--color-info-border)" 
             strokeWidth={2}
             strokeDasharray="4 4"
             dot={false}
             activeDot={false}
           />
         </ComposedChart>
-      </ResponsiveContainer>
+        </ResponsiveContainer>
+      </div>
     </div>
   );
 };

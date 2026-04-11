@@ -105,7 +105,7 @@ Wave 2: 4 Dashboard, 5 Simulator, 6 Marketing, 7 Operations, 8 Market
 > Implementation + Test = ONE task. Never separate.
 > EVERY task MUST have: Agent Profile + Parallelization + QA Scenarios.
 
-- [ ] 1. Reframe the app shell around the three service pillars
+- [x] 1. Reframe the app shell around the three service pillars
 
   **What to do**: Update `frontend/src/components/Layout.jsx` and `frontend/src/index.css` so the global shell communicates product value before a page is read. Replace the generic “EduPulse Console” framing with shell copy and supporting microcopy that foreground the README pillars. Keep the existing sidebar route structure, but add concise descriptive helper text and stronger active-state hierarchy so users understand each route’s operational purpose at a glance.
   **Must NOT do**: Do not add routes, drawers, hamburger menus, or mobile-specific navigation. Do not remove current five-page navigation.
@@ -146,7 +146,7 @@ Wave 2: 4 Dashboard, 5 Simulator, 6 Marketing, 7 Operations, 8 Market
 
   **Commit**: YES | Message: `feat: reframe app shell around service pillars` | Files: `frontend/src/components/Layout.jsx`, `frontend/src/index.css`
 
-- [ ] 2. Standardize trust-building state and alert surfaces
+- [x] 2. Standardize trust-building state and alert surfaces
 
   **What to do**: Improve `frontend/src/components/StatusPanel.jsx`, `frontend/src/components/AlertPanel.jsx`, `frontend/src/components/TierBadge.jsx`, and shared CSS in `frontend/src/index.css` so loading/empty/error/critical states feel intentional and trustworthy. Ensure alerts visually distinguish urgency, TierBadge handles “알 수 없음” more gracefully, and alert actions are explicitly interactive rather than decorative.
   **Must NOT do**: Do not introduce modal flows, toast systems, or backend-driven real-time notification work.
@@ -189,7 +189,7 @@ Wave 2: 4 Dashboard, 5 Simulator, 6 Marketing, 7 Operations, 8 Market
 
   **Commit**: YES | Message: `feat: strengthen shared state and alert feedback` | Files: `frontend/src/components/StatusPanel.jsx`, `frontend/src/components/AlertPanel.jsx`, `frontend/src/components/TierBadge.jsx`, `frontend/src/index.css`
 
-- [ ] 3. Make charts and score surfaces explain decisions, not just display data
+- [x] 3. Make charts and score surfaces explain decisions, not just display data
 
   **What to do**: Update `frontend/src/components/DemandChart.jsx`, `frontend/src/components/RiskGauge.jsx`, and `frontend/src/components/ScoreBar.jsx` so chart/gauge surfaces better communicate what the user should infer. Replace hardcoded colors with token-driven values where possible, strengthen labels and legends, and add clearer supporting copy/semantics that connect metrics to decisions.
   **Must NOT do**: Do not change charting library, API payload shape, or introduce export/report functionality.
@@ -232,7 +232,7 @@ Wave 2: 4 Dashboard, 5 Simulator, 6 Marketing, 7 Operations, 8 Market
 
   **Commit**: YES | Message: `feat: clarify chart and score decision surfaces` | Files: `frontend/src/components/DemandChart.jsx`, `frontend/src/components/RiskGauge.jsx`, `frontend/src/components/ScoreBar.jsx`, `frontend/src/index.css`
 
-- [ ] 4. Rebuild Dashboard hierarchy around product outcomes
+- [x] 4. Rebuild Dashboard hierarchy around product outcomes
 
   **What to do**: Update `frontend/src/pages/Dashboard.jsx` so the page immediately communicates the three product outcomes: current demand signal, urgent operating risk, and recommended next action. Keep the demo switcher in dev mode, but reorganize summary cards, chart framing, and alert framing so the page feels like a command center rather than a generic analytics page.
   **Must NOT do**: Do not remove field filtering, refresh behavior, or the dev-only demo switcher.
@@ -275,7 +275,7 @@ Wave 2: 4 Dashboard, 5 Simulator, 6 Marketing, 7 Operations, 8 Market
 
   **Commit**: YES | Message: `feat: align dashboard hierarchy with product outcomes` | Files: `frontend/src/pages/Dashboard.jsx`, `frontend/src/index.css`
 
-- [ ] 5. Turn Simulator into a decision brief, not just a form
+- [x] 5. Turn Simulator into a decision brief, not just a form
 
   **What to do**: Update `frontend/src/pages/Simulator.jsx` so the page better expresses README strategic planning value. Improve scenario comparison readability, make the result summary more executive, and strengthen cross-page next steps to operations and marketing based on the simulation outcome.
   **Must NOT do**: Do not change fixture contracts in `frontend/src/fixtures/simulatorStates.js` or API request shape.
@@ -318,7 +318,7 @@ Wave 2: 4 Dashboard, 5 Simulator, 6 Marketing, 7 Operations, 8 Market
 
   **Commit**: YES | Message: `feat: make simulator results more actionable` | Files: `frontend/src/pages/Simulator.jsx`, `frontend/src/index.css`
 
-- [ ] 6. Make Marketing feel like a revenue decision cockpit
+- [x] 6. Make Marketing feel like a revenue decision cockpit
 
   **What to do**: Update `frontend/src/pages/Marketing.jsx` so it clearly expresses the README marketing/revenue value: lead conversion, ad launch timing, and discount strategy. Strengthen metric hierarchy, emphasize the current demand tier card, and improve recommendation blocks so “what to do next” is obvious.
   **Must NOT do**: Do not add export/report download features or campaign creation flows.
@@ -362,7 +362,7 @@ Wave 2: 4 Dashboard, 5 Simulator, 6 Marketing, 7 Operations, 8 Market
 
   **Commit**: YES | Message: `feat: strengthen marketing decision hierarchy` | Files: `frontend/src/pages/Marketing.jsx`, `frontend/src/index.css`
 
-- [ ] 7. Make Operations the clearest “operating response” page
+- [x] 7. Make Operations the clearest “operating response” page
 
   **What to do**: Update `frontend/src/pages/Operations.jsx` so it expresses the README 운영 효율화 value more concretely. Strengthen the risk summary, make the response path clearer when closure risk is high, and improve schedule-assignment readability so the operator understands the operational consequence of the forecast.
   **Must NOT do**: Do not change scheduling data contracts or convert the time-slot UI into drag-and-drop.
@@ -406,7 +406,7 @@ Wave 2: 4 Dashboard, 5 Simulator, 6 Marketing, 7 Operations, 8 Market
 
   **Commit**: YES | Message: `feat: clarify operations response flow` | Files: `frontend/src/pages/Operations.jsx`, `frontend/src/index.css`
 
-- [ ] 8. Turn Market into a strategic planning board
+- [x] 8. Turn Market into a strategic planning board
 
   **What to do**: Update `frontend/src/pages/Market.jsx` so it better communicates strategic planning value: who the learners are, how the market is moving, and which start date is most advantageous. Make the top recommendation feel definitive and improve the connection between demographics, competition, and optimal-start outputs.
   **Must NOT do**: Do not change API calls, add maps, or redesign this page into a reporting/export module.
@@ -454,10 +454,10 @@ Wave 2: 4 Dashboard, 5 Simulator, 6 Marketing, 7 Operations, 8 Market
 > 4 review agents run in PARALLEL. ALL must APPROVE. Present consolidated results to user and get explicit "okay" before completing.
 > **Do NOT auto-proceed after verification. Wait for user's explicit approval before marking work complete.**
 > **Never mark F1-F4 as checked before getting user's okay.** Rejection or user feedback -> fix -> re-run -> present again -> wait for okay.
-- [ ] F1. Plan Compliance Audit — oracle
-- [ ] F2. Code Quality Review — unspecified-high
-- [ ] F3. Real Manual QA — unspecified-high (+ playwright if UI)
-- [ ] F4. Scope Fidelity Check — deep
+- [x] F1. Plan Compliance Audit — oracle
+- [x] F2. Code Quality Review — unspecified-high
+- [x] F3. Real Manual QA — unspecified-high (+ playwright if UI)
+- [x] F4. Scope Fidelity Check — deep
 
 ## Commit Strategy
 - Commit after each numbered task; do not batch multiple pages into a single commit.

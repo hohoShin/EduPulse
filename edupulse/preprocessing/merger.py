@@ -31,7 +31,7 @@ def merge_datasets(
         enrollment_df: 수강 이력 DataFrame. field, date 컬럼 필수.
         search_df: 검색 트렌드 DataFrame (optional). field, date, search_volume 필요.
         job_df: 채용 공고 DataFrame (optional). field, date, job_count 필요.
-        consultation_df: 상담 로그 DataFrame (optional). field, date, consultation_count, conversion_rate 필요.
+        consultation_df: 상담 로그 DataFrame (optional). field, date, consultation_count 필요.
         student_profile_df: 학생 프로필 DataFrame (optional). field, date, age_20s_ratio, age_30s_ratio, age_40plus_ratio, purpose_career, purpose_hobby, purpose_cert 필요.
         web_log_df: 웹 로그 DataFrame (optional). field, date, page_views 필요.
         cert_exam_df: 자격증 시험 일정 DataFrame (optional). field, date, has_cert_exam, weeks_to_exam 필요.
@@ -66,7 +66,7 @@ def merge_datasets(
         consultation_df = consultation_df.copy()
         consultation_df[date_col] = pd.to_datetime(consultation_df[date_col])
         consultation_df[date_col] = consultation_df[date_col].dt.to_period("W").dt.start_time
-        consult_cols = consultation_df[join_keys + ["consultation_count", "conversion_rate"]].copy()
+        consult_cols = consultation_df[join_keys + ["consultation_count"]].copy()
         merged = merged.merge(consult_cols, on=join_keys, how="left")
 
     if student_profile_df is not None and not student_profile_df.empty:

@@ -10,6 +10,14 @@ import {
   getDashboardAlerts,
 } from '../api/adapters/index.js';
 
+const PILLAR_COPY = {
+  운영_효율화: '운영 효율화',
+  마케팅_매출_연계: '마케팅·매출 연계',
+  전략_기획: '전략 기획',
+};
+
+const SHOW_DEMO_SWITCHER = import.meta.env.DEV && import.meta.env.VITE_ADAPTER !== 'real';
+
 const Dashboard = () => {
   const [demoState, setDemoState] = useState('success');
   const [field, setField] = useState('coding');
@@ -49,6 +57,53 @@ const Dashboard = () => {
 
   const stateLabels = { success: '성공', loading: '로딩 중', empty: '데이터 없음', error: '오류' };
 
+  const summaryCards = summary.state === 'success' ? summary.data ?? [] : [];
+  const demandSignalCard = summaryCards.find((card) => card.id === 'demand-index');
+  const supportingSummaryCards = summaryCards.filter((card) => card.id !== 'demand-index');
+  const alertItems = alerts.state === 'success' ? alerts.data ?? [] : [];
+  const primaryAlert = alertItems[0] ?? null;
+
+  const primaryAction = primaryAlert?.actionLabel
+    ? {
+        title: primaryAlert.actionLabel,
+        detail: `${primaryAlert.title}에 맞춰 ${PILLAR_COPY.마케팅_매출_연계} 또는 ${PILLAR_COPY.운영_효율화} 대응을 시작하세요.`,
+      }
+    : {
+        title: '다음 액션: 운영 현황 점검',
+        detail: `${PILLAR_COPY.전략_기획} 인사이트와 현재 경고 상태를 함께 검토해 우선순위를 정리하세요.`,
+      };
+
+  const renderSummaryMetric = (card) => (
+    <div key={card.id} className="dashboard-summary-card">
+      <div className="dashboard-summary-card__header">
+        <h3 className="metric-label">{card.label}</h3>
+        {card.id === 'demand-index' && <span className="dashboard-summary-card__tag">핵심 신호</span>}
+      </div>
+      <div className="dashboard-summary-card__valueRow">
+        {card.id === 'demand-index' ? (
+          <TierBadge tier={card.value} />
+        ) : (
+          <span className="metric-value">{card.value}</span>
+        )}
+      </div>
+      {card.trend && (
+        <div className={card.trendDirection === 'up' ? 'trend-up' : 'trend-down'}>
+          {card.trendDirection === 'up' ? (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg>
+          ) : (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"></polyline><polyline points="17 18 23 18 23 12"></polyline></svg>
+          )}
+          <span>{card.trend}{card.trendLabel ? ` ${card.trendLabel}` : ''}</span>
+        </div>
+      )}
+      <p className="dashboard-summary-card__description">
+        {card.id === 'demand-index'
+          ? `${PILLAR_COPY.전략_기획}과 ${PILLAR_COPY.마케팅_매출_연계} 우선순위를 정할 때 기준이 되는 현재 수요 신호입니다.`
+          : `${PILLAR_COPY.운영_효율화} 관점에서 지금 확인해야 할 기본 운영 지표입니다.`}
+      </p>
+    </div>
+  );
+
   const renderDemoSwitcher = () => (
     <div className="toolbar">
       <div className="toolbar-label">
@@ -82,9 +137,9 @@ const Dashboard = () => {
       <div className="page-header">
         <div>
           <h1 className="page-title">대시보드</h1>
-          <p className="page-subtitle">AI 기반 수강 수요 예측 및 운영 현황</p>
+          <p className="page-subtitle">{PILLAR_COPY.운영_효율화}, {PILLAR_COPY.마케팅_매출_연계}, {PILLAR_COPY.전략_기획}을 한 화면에서 연결하는 운영 커맨드 센터</p>
         </div>
-        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 'var(--space-3)' }}>
+        <div className="dashboard-header-controls">
           <FieldSelector
             value={field}
             onChange={setField}
@@ -107,50 +162,89 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {import.meta.env.DEV && renderDemoSwitcher()}
+      {SHOW_DEMO_SWITCHER && renderDemoSwitcher()}
 
-      <div className="grid-auto-fit" style={{ marginBottom: 'var(--space-8)' }}>
+      <section className="dashboard-priority-panel">
+        <div className="dashboard-priority-panel__header">
+          <div>
+            <p className="dashboard-priority-panel__eyebrow">첫 화면 요약</p>
+            <h2 className="dashboard-priority-panel__title">지금 확인해야 할 수요 신호, 운영 리스크, 다음 액션</h2>
+            <p className="dashboard-priority-panel__description">
+              {PILLAR_COPY.운영_효율화}와 {PILLAR_COPY.마케팅_매출_연계} 대응을 바로 시작할 수 있도록 현재 상태를 우선순위 중심으로 재정리했습니다.
+            </p>
+          </div>
+        </div>
+
         {summary.state === 'loading' && (
-          <StatusPanel variant="loading" title="데이터 로딩 중" message="요약 지표를 불러오고 있습니다." />
+          <StatusPanel variant="loading" title="데이터 로딩 중" message="우선순위 요약을 불러오고 있습니다." />
         )}
         {summary.state === 'error' && (
           <StatusPanel variant="error" title="오류 발생" message={summary.error} />
         )}
         {summary.state === 'empty' && (
-          <StatusPanel variant="empty" title="데이터 없음" message="표시할 요약 지표가 없습니다." />
+          <StatusPanel variant="empty" title="데이터 없음" message="우선순위를 정리할 요약 지표가 없습니다." />
         )}
-        {summary.state === 'success' && summary.data?.map(card => (
-          <div key={card.id} className="card">
-            <h3 className="metric-label">{card.label}</h3>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--space-2)' }}>
-              {card.id === 'demand-index' ? (
-                <div style={{ marginTop: 'var(--space-2)' }}>
-                  <TierBadge tier={card.value} />
-                </div>
-              ) : (
-                <span className="metric-value">{card.value}</span>
-              )}
-            </div>
-            {card.trend && (
-              <div className={card.trendDirection === 'up' ? 'trend-up' : 'trend-down'}>
-                {card.trendDirection === 'up' ? (
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg>
-                ) : (
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"></polyline><polyline points="17 18 23 18 23 12"></polyline></svg>
-                )}
-                <span>{card.trend}{card.trendLabel ? ` ${card.trendLabel}` : ''}</span>
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
 
-      <div className="grid-auto-fit" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))' }}>
+        {summary.state === 'success' && (
+          <div className="dashboard-priority-grid">
+            <div className="card dashboard-priority-card dashboard-priority-card--signal">
+              <p className="dashboard-priority-card__eyebrow">현재 수요 신호</p>
+              <div className="dashboard-priority-card__body">
+                {demandSignalCard ? renderSummaryMetric(demandSignalCard) : (
+                  <StatusPanel variant="empty" message="수요 신호를 계산할 수 없습니다." />
+                )}
+              </div>
+            </div>
+
+            <div className="card dashboard-priority-card dashboard-priority-card--risk">
+              <div className="dashboard-priority-card__headerRow">
+                <p className="dashboard-priority-card__eyebrow">긴급 운영 리스크</p>
+                {alertItems.length > 0 && <span className="dashboard-alert-count">{alertItems.length}건</span>}
+              </div>
+              {alerts.state === 'loading' && <StatusPanel variant="loading" message="리스크 신호를 정리 중입니다." />}
+              {alerts.state === 'error' && <StatusPanel variant="error" title="오류" message={alerts.error} />}
+              {alerts.state === 'empty' && <StatusPanel variant="empty" message="모든 시스템이 정상입니다. 즉시 대응이 필요한 리스크는 없습니다." />}
+              {alerts.state === 'success' && primaryAlert && <AlertPanel alerts={[primaryAlert]} />}
+            </div>
+
+            <div className="card dashboard-priority-card dashboard-priority-card--action">
+              <p className="dashboard-priority-card__eyebrow">다음 액션</p>
+              <h3 className="dashboard-action-title">{primaryAction.title}</h3>
+              <p className="dashboard-action-description">{primaryAction.detail}</p>
+              <div className="dashboard-action-links">
+                <button type="button" className="btn btn-primary dashboard-action-button" onClick={() => setRefreshKey((k) => k + 1)}>
+                  추천 상태 다시 확인
+                </button>
+                <p className="dashboard-action-helper">바로가기 대신 현재 페이지에서 상태를 새로 불러와 우선순위를 다시 판단합니다.</p>
+              </div>
+            </div>
+          </div>
+        )}
+      </section>
+
+      {summary.state === 'success' && supportingSummaryCards.length > 0 && (
+        <section className="dashboard-secondary-summary">
+          <div className="dashboard-section-header">
+            <div>
+              <p className="dashboard-section-header__eyebrow">운영 기준선</p>
+              <h2 className="dashboard-section-header__title">현재 운영 효율화에 필요한 기본 지표</h2>
+            </div>
+          </div>
+          <div className="grid-auto-fit dashboard-summary-grid">
+            {supportingSummaryCards.map(renderSummaryMetric)}
+          </div>
+        </section>
+      )}
+
+      <div className="grid-auto-fit dashboard-detail-grid">
         <div className="card">
-          <h2 className="card-header">
-            예상 수요 트렌드
-            <span style={{ fontSize: '0.75rem', fontWeight: 'normal', color: 'var(--color-text-muted)', backgroundColor: 'var(--color-background)', padding: '4px 8px', borderRadius: '4px' }}>최근 30일</span>
-          </h2>
+          <div className="dashboard-card-header">
+            <div>
+              <h2 className="card-header">예상 수요 트렌드</h2>
+              <p className="dashboard-card-header__description">{PILLAR_COPY.전략_기획} 판단을 위해 최근 수요 흐름과 예측 범위를 함께 확인합니다.</p>
+            </div>
+            <span className="dashboard-header-badge">최근 30일</span>
+          </div>
           {chart.state === 'loading' && <StatusPanel variant="loading" message="수요 예측 데이터를 분석 중입니다..." />}
           {chart.state === 'error' && <StatusPanel variant="error" title="오류" message={chart.error} />}
           {chart.state === 'empty' && <StatusPanel variant="empty" message="선택한 기간에 대한 차트 데이터가 없습니다." />}
@@ -158,20 +252,15 @@ const Dashboard = () => {
         </div>
 
         <div className="card">
-          <h2 className="card-header">
-            시스템 알림
+          <div className="dashboard-card-header">
+            <div>
+              <h2 className="card-header">시스템 알림</h2>
+              <p className="dashboard-card-header__description">{PILLAR_COPY.운영_효율화}와 {PILLAR_COPY.마케팅_매출_연계}에 영향을 주는 전체 경고 목록입니다.</p>
+            </div>
             {alerts.state === 'success' && alerts.data?.length > 0 && (
-              <span style={{
-                backgroundColor: 'var(--color-error-bg)',
-                color: 'var(--color-error-text)',
-                fontSize: '0.75rem',
-                padding: '2px 8px',
-                borderRadius: '12px'
-              }}>
-                {alerts.data.length}건
-              </span>
+              <span className="dashboard-alert-count">{alerts.data.length}건</span>
             )}
-          </h2>
+          </div>
           {alerts.state === 'loading' && <StatusPanel variant="loading" message="실시간 알림을 동기화 중입니다..." />}
           {alerts.state === 'error' && <StatusPanel variant="error" title="오류" message={alerts.error} />}
           {alerts.state === 'empty' && <StatusPanel variant="empty" message="모든 시스템이 정상입니다. 활성 알림이 없습니다." />}

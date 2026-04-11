@@ -178,7 +178,6 @@ def test_lead_conversion(client):
     data = response.json()
     assert data["field"] == "coding"
     assert "estimated_conversions" in data
-    assert "conversion_rate_trend" in data
     assert "consultation_count_trend" in data
     assert "recommendations" in data
     assert isinstance(data["recommendations"], list)

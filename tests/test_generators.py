@@ -29,10 +29,9 @@ def enrollment_df():
 def test_generate_consultation_logs_schema(enrollment_df):
     """상담 로그에 필수 컬럼과 올바른 타입이 있어야 한다."""
     df = generate_consultation_logs(enrollment_df, seed=44)
-    assert set(["date", "field", "consultation_count", "conversion_rate", "ds", "y"]).issubset(df.columns)
+    assert set(["date", "field", "consultation_count", "ds", "y"]).issubset(df.columns)
     assert pd.api.types.is_datetime64_any_dtype(df["date"])
     assert pd.api.types.is_integer_dtype(df["consultation_count"])
-    assert pd.api.types.is_float_dtype(df["conversion_rate"])
 
 
 def test_generate_consultation_logs_seed_reproducibility(enrollment_df):

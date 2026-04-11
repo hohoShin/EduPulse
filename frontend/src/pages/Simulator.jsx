@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import StatusPanel from '../components/StatusPanel.jsx';
 import TierBadge from '../components/TierBadge.jsx';
@@ -21,42 +21,45 @@ const ScenarioCard = ({ scenario, isActive }) => {
 
   return (
     <div
-      className="card"
+      className="scenario-card"
       style={{
-        flex: '1 1 180px',
-        borderLeft: isActive ? `3px solid ${tierColor}` : '3px solid var(--color-border)',
-        opacity: isActive ? 1 : 0.7,
-        transition: 'opacity 0.2s',
+        borderTop: isActive ? `4px solid ${tierColor}` : '4px solid transparent',
+        opacity: isActive ? 1 : 0.8,
       }}
     >
-      <h3 style={{ fontSize: '0.875rem', fontWeight: '600', color: 'var(--color-text-main)', marginBottom: 'var(--space-1)' }}>
-        {scenario.label}
-      </h3>
-      <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginBottom: 'var(--space-3)' }}>
-        {scenario.description}
-      </p>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--space-1)', marginBottom: 'var(--space-2)' }}>
-        <span style={{ fontSize: '1.75rem', fontWeight: '700', color: tierColor }}>
+      <div className="scenario-header">
+        <div>
+          <h3 className="scenario-title">{scenario.label}</h3>
+          <p className="scenario-desc">{scenario.description}</p>
+        </div>
+      </div>
+      
+      <div className="scenario-value-container">
+        <span className="scenario-value" style={{ color: tierColor }}>
           {scenario.predictedCount}
         </span>
-        <span style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)' }}>명</span>
-        <TierBadge tier={scenario.demandTier} />
-      </div>
-      <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
-        신뢰 구간: {scenario.confidenceInterval.lower} ~ {scenario.confidenceInterval.upper}명
-      </div>
-      <div style={{ marginTop: 'var(--space-3)', paddingTop: 'var(--space-3)', borderTop: '1px solid var(--color-border)', fontSize: '0.75rem', color: 'var(--color-text-muted)', display: 'flex', flexDirection: 'column', gap: 'var(--space-1)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-          <span>광고 시작</span>
-          <span style={{ fontWeight: '500', color: 'var(--color-text-main)' }}>{scenario.marketing.adWeeksBefore}주 전</span>
+        <span className="scenario-unit">명 예상</span>
+        <div style={{ marginLeft: 'auto' }}>
+          <TierBadge tier={scenario.demandTier} />
         </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-          <span>권장 할인율</span>
-          <span style={{ fontWeight: '500', color: 'var(--color-text-main)' }}>{(scenario.marketing.discountRate * 100).toFixed(0)}%</span>
+      </div>
+
+      <div className="scenario-metrics">
+        <div className="scenario-metric-row">
+          <span className="scenario-metric-label">신뢰 구간</span>
+          <span className="scenario-metric-val">{scenario.confidenceInterval.lower} ~ {scenario.confidenceInterval.upper}명</span>
         </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-          <span>필요 강사</span>
-          <span style={{ fontWeight: '500', color: 'var(--color-text-main)' }}>{scenario.operations.instructors}명</span>
+        <div className="scenario-metric-row">
+          <span className="scenario-metric-label">광고 시작</span>
+          <span className="scenario-metric-val">{scenario.marketing.adWeeksBefore}주 전</span>
+        </div>
+        <div className="scenario-metric-row">
+          <span className="scenario-metric-label">권장 할인율</span>
+          <span className="scenario-metric-val">{(scenario.marketing.discountRate * 100).toFixed(0)}%</span>
+        </div>
+        <div className="scenario-metric-row">
+          <span className="scenario-metric-label">필요 강사</span>
+          <span className="scenario-metric-val">{scenario.operations.instructors}명</span>
         </div>
       </div>
     </div>
@@ -162,11 +165,16 @@ const Simulator = () => {
       </div>
 
       {/* 시나리오 비교 카드 */}
-      <div className="card" style={{ marginBottom: 'var(--space-6)' }}>
-        <h2 className="card-header">
-          시나리오 비교
-          <span style={{ fontSize: '0.75rem', fontWeight: 'normal', color: 'var(--color-text-muted)', backgroundColor: 'var(--color-background)', padding: '4px 8px', borderRadius: '4px' }}>기본 · 낙관 · 비관</span>
-        </h2>
+      <div className="card" style={{ marginBottom: 'var(--space-6)', backgroundColor: 'var(--color-surface)' }}>
+        <div style={{ marginBottom: 'var(--space-4)' }}>
+          <h2 className="card-header" style={{ marginBottom: 'var(--space-1)' }}>
+            시나리오 비교 및 수요 브리프 기준선
+            <span style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--color-primary)', backgroundColor: 'var(--color-info-bg)', padding: '4px 8px', borderRadius: '4px' }}>Reference Data</span>
+          </h2>
+          <p style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)' }}>
+            과거 동일 분야의 개강 데이터를 기반으로 산출된 3가지 기준 시나리오를 먼저 비교하고, 좌측 패널에 실제 강좌 정보를 입력하면 맞춤 예측 브리프를 생성합니다.
+          </p>
+        </div>
         <div style={{ display: 'flex', gap: 'var(--space-4)', flexWrap: 'wrap' }}>
           {SCENARIOS.map(s => (
             <ScenarioCard
@@ -176,9 +184,6 @@ const Simulator = () => {
             />
           ))}
         </div>
-        <p style={{ marginTop: 'var(--space-4)', fontSize: '0.75rem', color: 'var(--color-text-light)' }}>
-          * 시나리오는 동일 분야의 과거 데이터 기반 데모 값입니다. 아래에서 강좌 정보를 입력하면 맞춤 예측이 제공됩니다.
-        </p>
       </div>
 
       <div style={{ display: 'flex', gap: 'var(--space-6)', flexWrap: 'wrap', alignItems: 'flex-start' }}>
@@ -245,7 +250,7 @@ const Simulator = () => {
 
             {validationError && (
               <div style={{ color: 'var(--color-error-text)', fontSize: '0.875rem', marginTop: 'var(--space-2)', display: 'flex', alignItems: 'center', gap: 'var(--space-1)' }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                <svg aria-hidden="true" focusable="false" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
                 {validationError}
               </div>
             )}
@@ -259,17 +264,17 @@ const Simulator = () => {
               >
                 {uiState.state === 'loading' ? (
                   <>
-                    <svg className="animate-spin" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="2" x2="12" y2="6"></line><line x1="12" y1="18" x2="12" y2="22"></line><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line><line x1="2" y1="12" x2="6" y2="12"></line><line x1="18" y1="12" x2="22" y2="12"></line><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line></svg>
+                     <svg aria-hidden="true" focusable="false" className="animate-spin" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="2" x2="12" y2="6"></line><line x1="12" y1="18" x2="12" y2="22"></line><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line><line x1="2" y1="12" x2="6" y2="12"></line><line x1="18" y1="12" x2="22" y2="12"></line><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line></svg>
                     시뮬레이션 분석 중...
                   </>
                 ) : hasResult ? (
                   <>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+                     <svg aria-hidden="true" focusable="false" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
                     다시 실행
                   </>
                 ) : (
                   <>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                     <svg aria-hidden="true" focusable="false" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
                     시뮬레이션 실행
                   </>
                 )}
@@ -282,7 +287,7 @@ const Simulator = () => {
                   onClick={handleReset}
                   style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)' }}
                 >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                   <svg aria-hidden="true" focusable="false" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                   조건 변경
                 </button>
               )}
@@ -296,7 +301,7 @@ const Simulator = () => {
               <StatusPanel
                 variant="empty"
                 title="시뮬레이션 준비 완료"
-                message="좌측에 강좌 정보를 입력하고 시뮬레이션을 실행하여 예상 수요 및 운영 가이드를 확인하세요."
+                message="좌측에 강좌 정보를 입력하면 예상 수요, 필요한 운영 리소스, 권장 마케팅 액션을 한 번에 확인할 수 있습니다."
               />
             </div>
           )}
@@ -320,20 +325,30 @@ const Simulator = () => {
               )}
 
               <div className="card">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--space-6)', borderBottom: '1px solid var(--color-border)', paddingBottom: 'var(--space-4)' }}>
+                <div className="brief-header">
                   <div>
-                    <h2 style={{ fontSize: '1.5rem', fontWeight: '700', margin: '0 0 var(--space-2) 0', color: 'var(--color-text-main)' }}>
-                      {uiState.data.courseName}
-                    </h2>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
-                      {new Date(formData.startDate).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })} 개강 예정
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginBottom: 'var(--space-2)' }}>
+                      <span style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--color-primary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>시뮬레이션 브리프</span>
                       <span style={{ color: 'var(--color-border)' }}>|</span>
-                      분야: {getFieldLabel(uiState.data.field)}
+                      <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>{new Date(uiState.data.predictionDate).toLocaleString('ko-KR')}</span>
+                    </div>
+                    <h2 className="brief-title">{uiState.data.courseName}</h2>
+                    
+                    <div className="brief-meta">
+                      <div className="brief-meta-item">
+                         <svg aria-hidden="true" focusable="false" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                        {new Date(formData.startDate).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })} 개강
+                      </div>
+                      <span className="brief-meta-divider">•</span>
+                      <div className="brief-meta-item">
+                        분야: {getFieldLabel(uiState.data.field)}
+                      </div>
                       {formData.tuitionFee && (
                         <>
-                          <span style={{ color: 'var(--color-border)' }}>|</span>
-                          수강료: {Number(formData.tuitionFee).toLocaleString('ko-KR')}원
+                          <span className="brief-meta-divider">•</span>
+                          <div className="brief-meta-item">
+                            수강료: {Number(formData.tuitionFee).toLocaleString('ko-KR')}원
+                          </div>
                         </>
                       )}
                     </div>
@@ -341,69 +356,80 @@ const Simulator = () => {
                   <TierBadge tier={uiState.data.demandTier} />
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 'var(--space-6)' }}>
-                  <div style={{ backgroundColor: 'var(--color-background)', padding: 'var(--space-4)', borderRadius: 'var(--radius-md)' }}>
-                    <h3 className="metric-label">수요 예측</h3>
-                    <div className="metric-value" style={{ color: 'var(--color-primary)' }}>
-                      {uiState.data.predictedCount} <span style={{ fontSize: '1rem', fontWeight: '500', color: 'var(--color-text-muted)' }}>명</span>
-                    </div>
-                    <div style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)', marginTop: 'var(--space-1)' }}>
-                      신뢰 구간: {uiState.data.confidenceInterval.lower} ~ {uiState.data.confidenceInterval.upper}명
-                    </div>
+                <div className="brief-section">
+                  <div className="brief-section-header">
+                     <svg aria-hidden="true" focusable="false" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary)" strokeWidth="2"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
+                    <h3 className="brief-section-title">핵심 예측 지표</h3>
                   </div>
-
-                  <div style={{ backgroundColor: 'var(--color-background)', padding: 'var(--space-4)', borderRadius: 'var(--radius-md)' }}>
-                    <h3 className="metric-label">운영 가이드</h3>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>필요 강사 수</span>
-                        <span style={{ fontWeight: '600', color: 'var(--color-text-main)' }}>{uiState.data.operations.instructors}명</span>
+                  
+                  <div className="brief-metric-grid">
+                    <div className="brief-metric-card">
+                      <div className="brief-metric-label">예상 수요 인원</div>
+                      <div className="brief-metric-value brief-metric-value--primary">
+                        {uiState.data.predictedCount} <span style={{ fontSize: '1rem', fontWeight: '500', color: 'var(--color-text-muted)' }}>명</span>
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>권장 강의실</span>
-                        <span style={{ fontWeight: '600', color: 'var(--color-text-main)' }}>{uiState.data.operations.classrooms}개</span>
+                      <div className="brief-metric-subtext">
+                        신뢰 구간: {uiState.data.confidenceInterval.lower} ~ {uiState.data.confidenceInterval.upper}명
                       </div>
                     </div>
-                  </div>
 
-                  <div style={{ backgroundColor: 'var(--color-background)', padding: 'var(--space-4)', borderRadius: 'var(--radius-md)' }}>
-                    <h3 className="metric-label">마케팅 제안</h3>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>캠페인 시작</span>
-                        <span style={{ fontWeight: '600', color: 'var(--color-text-main)' }}>{uiState.data.marketing.adWeeksBefore}주 전</span>
+                    <div className="brief-metric-card">
+                      <div className="brief-metric-label">AI 모델 신뢰도</div>
+                      <div className="brief-metric-value">
+                        High
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>얼리버드 혜택</span>
-                        <span style={{ fontWeight: '600', color: 'var(--color-text-main)' }}>{uiState.data.marketing.earlybirdDays}일</span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>권장 할인율</span>
-                        <span style={{ fontWeight: '600', color: 'var(--color-success-text)' }}>{(uiState.data.marketing.discountRate * 100).toFixed(0)}%</span>
+                      <div className="brief-metric-subtext">
+                        {uiState.data.modelUsed} 모델 적용
                       </div>
                     </div>
                   </div>
                 </div>
 
-                <div style={{ marginTop: 'var(--space-6)', paddingTop: 'var(--space-4)', borderTop: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--color-text-light)', display: 'flex', gap: 'var(--space-4)' }}>
-                    <span>AI 모델: {uiState.data.modelUsed}</span>
-                    <span>분석 시간: {new Date(uiState.data.predictionDate).toLocaleString('ko-KR')}</span>
+                <div className="brief-section" style={{ marginTop: 'var(--space-4)' }}>
+                  <div className="brief-section-header">
+                     <svg aria-hidden="true" focusable="false" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-success-text)" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                    <h3 className="brief-section-title">운영 및 마케팅 가이드</h3>
                   </div>
-                  <Link
-                    to="/operations"
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 'var(--space-1)',
-                      fontSize: '0.875rem',
-                      color: 'var(--color-primary)',
-                      textDecoration: 'none',
-                      fontWeight: '500',
-                    }}
-                  >
-                    운영 계획 보기
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+                  
+                  <div className="brief-metric-grid">
+                    <div className="brief-metric-card" style={{ borderLeft: '3px solid var(--color-success-text)' }}>
+                      <div className="brief-metric-label">권장 운영 리소스</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)' }}>필요 강사</span>
+                          <span style={{ fontSize: '0.875rem', fontWeight: '600', color: 'var(--color-text-main)' }}>{uiState.data.operations.instructors}명 배정 요망</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)' }}>강의실</span>
+                          <span style={{ fontSize: '0.875rem', fontWeight: '600', color: 'var(--color-text-main)' }}>{uiState.data.operations.classrooms}개 공간 확보</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="brief-metric-card" style={{ borderLeft: '3px solid var(--color-primary)' }}>
+                      <div className="brief-metric-label">최적 마케팅 액션</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)' }}>캠페인 시작</span>
+                          <span style={{ fontSize: '0.875rem', fontWeight: '600', color: 'var(--color-text-main)' }}>개강 {uiState.data.marketing.adWeeksBefore}주 전</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)' }}>권장 할인율</span>
+                          <span style={{ fontSize: '0.875rem', fontWeight: '600', color: 'var(--color-primary)' }}>{(uiState.data.marketing.discountRate * 100).toFixed(0)}% ({uiState.data.marketing.earlybirdDays}일간)</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="brief-actions">
+                  <Link to="/operations" className="brief-action-link">
+                     <svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+                    운영 계획 수립
+                  </Link>
+                  <Link to="/marketing" className="brief-action-link brief-action-link--primary">
+                     <svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+                    마케팅 캠페인 기획
                   </Link>
                 </div>
               </div>
