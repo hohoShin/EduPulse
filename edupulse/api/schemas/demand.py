@@ -41,3 +41,6 @@ class ClosureRiskResponse(BaseModel):
     risk_level: Literal["high", "medium", "low"]
     contributing_factors: list[str]
     recommendation: str
+    predicted_enrollment: int | None = None
+    min_enrollment: int | None = None
+    risk_trend: list[float] | None = None

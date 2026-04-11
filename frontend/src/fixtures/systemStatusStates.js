@@ -4,8 +4,8 @@ export const systemStatusSuccess = createUIState({
   state: 'success',
   isDemo: true,
   data: [
-    createStatusItem('수요 예측 엔진', 'online', '2026-04-09T13:45:00Z', { cpu: 12, memory: 450 }),
-    createStatusItem('네이버 데이터랩 API', 'online', '2026-04-09T14:00:00Z', { apiQuotaUsed: 420, apiQuotaLimit: 1000 }),
+    createStatusItem('수요 예측 엔진', 'ok', '2026-04-09T13:45:00Z', { cpu: 12, memory: 450 }),
+    createStatusItem('네이버 데이터랩 API', 'ok', '2026-04-09T14:00:00Z', { apiQuotaUsed: 420, apiQuotaLimit: 1000 }),
     createStatusItem('구글 트렌드 크롤러', 'degraded', '2026-04-09T12:00:00Z', { cpu: 85, memory: 1200 }),
   ],
 });

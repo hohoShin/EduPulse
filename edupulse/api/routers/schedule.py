@@ -25,16 +25,18 @@ def suggest_schedule(request: ScheduleRequest):
     # rule-based 배정 계획 생성
     classes: list[ClassAssignment] = []
     remaining = request.predicted_enrollment
-    time_slots = ["09:00-12:00", "13:00-16:00", "17:00-20:00"]
+    time_slots = ["오전 (09:00-12:00)", "오후 (13:00-16:00)", "저녁 (18:00-21:00)"]
 
     for i in range(required_classrooms):
         capacity = min(remaining, _CLASS_CAPACITY)
         classes.append(
             ClassAssignment(
                 class_number=i + 1,
+                class_name=f"{chr(65 + i)}반",
                 instructor_slot=f"강사 {i + 1}",
                 time_slot=time_slots[i % len(time_slots)],
                 capacity=capacity,
+                classroom=f"강의실 {i + 1}",
             )
         )
         remaining -= capacity

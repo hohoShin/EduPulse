@@ -15,6 +15,8 @@ class StartDateCandidate(BaseModel):
     demand_tier: DemandTier
     composite_score: float
     confidence_interval: Optional[ConfidenceInterval] = None
+    competitor_count: int | None = None
+    search_trend: str | None = None
 
 
 class OptimalStartRequest(BaseModel):
@@ -83,6 +85,7 @@ class PurposeGroup(BaseModel):
 
 class DemographicsResponse(BaseModel):
     field: str
+    total_students: int | None = None
     age_distribution: list[AgeGroup]
     purpose_distribution: list[PurposeGroup]
     trend: str
@@ -101,6 +104,8 @@ class CompetitorRequest(BaseModel):
 class CompetitorResponse(BaseModel):
     field: str
     competitor_openings: int
-    competitor_avg_price: float
+    competitor_avg_price: int
     saturation_index: float
     recommendation: str
+    previous_openings: int | None = None
+    previous_avg_price: int | None = None

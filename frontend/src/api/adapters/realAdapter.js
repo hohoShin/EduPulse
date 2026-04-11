@@ -22,6 +22,7 @@ import {
   transformMarketingTimingResponse,
   transformOptimalStartResponse,
 } from '../transformers.js';
+
 import { toErrorUIState } from '../errors.js';
 
 // ---------------------------------------------------------------------------
@@ -130,9 +131,9 @@ async function getMarketingTiming({ field } = {}) {
   try {
     const startDate = futureDate(8);
     const [r1, r2, r3] = await Promise.all([
-      apiPost('/api/v1/marketing/timing', { course_name: '기본과정', start_date: startDate, demand_tier: 'High' }),
-      apiPost('/api/v1/marketing/timing', { course_name: '기본과정', start_date: startDate, demand_tier: 'Mid' }),
-      apiPost('/api/v1/marketing/timing', { course_name: '기본과정', start_date: startDate, demand_tier: 'Low' }),
+      apiPost('/api/v1/marketing/timing', { course_name: `${field} 기본과정`, start_date: startDate, demand_tier: 'High' }),
+      apiPost('/api/v1/marketing/timing', { course_name: `${field} 기본과정`, start_date: startDate, demand_tier: 'Mid' }),
+      apiPost('/api/v1/marketing/timing', { course_name: `${field} 기본과정`, start_date: startDate, demand_tier: 'Low' }),
     ]);
 
     return createUIState({
@@ -167,13 +168,13 @@ async function getOptimalStart({ field, startDate, endDate } = {}) {
 // Group 3 — Complex chaining (1 method)
 // ---------------------------------------------------------------------------
 
-async function simulateDemand({ courseName, field, startDate } = {}) {
+async function simulateDemand({ courseName, field, startDate, tuitionFee } = {}) {
   try {
     const raw = await apiPost('/api/v1/simulation/simulate', {
       course_name: courseName,
       field,
       start_date: formatDate(startDate),
-      price_per_student: 500000,
+      price_per_student: tuitionFee || 500000,
     });
 
     const result = transformSimulateResponse(raw, courseName, field);
@@ -227,12 +228,12 @@ async function getDashboardSummary({ field } = {}) {
 
     const cards = [
       createSummaryCard(
-        'total-students', '예상 수강생',
+        'total-enrollment', '예상 수강생',
         demandRaw.predicted_enrollment, '명',
         null, null, null, 'users',
       ),
       createSummaryCard(
-        'competitor-count', '경쟁 강좌',
+        'active-courses', '경쟁 강좌',
         compRaw.competitor_openings, '개',
         null, null, null, 'chart',
       ),

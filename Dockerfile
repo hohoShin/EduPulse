@@ -1,7 +1,8 @@
 FROM python:3.12-slim
 WORKDIR /app
 COPY requirements-server.txt .
-RUN pip install --no-cache-dir -r requirements-server.txt
+RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu && \
+    pip install --no-cache-dir -r requirements-server.txt
 COPY . .
 RUN pip install -e .
 EXPOSE 8000
