@@ -226,7 +226,7 @@ COPY package.json package-lock.json* ./
 RUN npm ci
 COPY . .
 ARG VITE_API_BASE_URL=""
-ARG VITE_ADAPTER="api"
+ARG VITE_ADAPTER="real"
 RUN npm run build
 
 # Stage 2: Serve — nginx로 정적 파일만 서빙

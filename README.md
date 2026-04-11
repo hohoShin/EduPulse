@@ -288,7 +288,7 @@ cd frontend && npm install && npm run dev
 
 # 백엔드 연동 모드
 # 터미널 1: .venv/bin/python -m uvicorn edupulse.api.main:app --reload
-# 터미널 2: cd frontend && VITE_ADAPTER=api npm run dev
+# 터미널 2: cd frontend && VITE_ADAPTER=real npm run dev
 ```
 
 - 접속 주소: `http://localhost:5173/`
