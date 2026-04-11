@@ -155,11 +155,13 @@ export async function getMarketingTiming(input = {}) {
   return marketingTimingSuccess(input.field || 'coding');
 }
 
+// eslint-disable-next-line no-unused-vars
 export async function getClosureRisk(input = {}) {
   await new Promise(resolve => setTimeout(resolve, 200));
   return closureRiskSuccess;
 }
 
+// eslint-disable-next-line no-unused-vars
 export async function getScheduleSuggest(input = {}) {
   await new Promise(resolve => setTimeout(resolve, 150));
   return scheduleSuggestSuccess;

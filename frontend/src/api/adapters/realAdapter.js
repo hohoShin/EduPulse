@@ -21,7 +21,6 @@ import {
   transformScheduleResponse,
   transformMarketingTimingResponse,
   transformOptimalStartResponse,
-  transformDemandResponse,
 } from '../transformers.js';
 import { toErrorUIState } from '../errors.js';
 
@@ -126,6 +125,7 @@ async function getScheduleSuggest({ courseName, field, startDate } = {}) {
  * Parallel marketing timing for all three demand tiers.
  * Returns an ARRAY (matching mock fixture shape), not an object.
  */
+// eslint-disable-next-line no-unused-vars
 async function getMarketingTiming({ field } = {}) {
   try {
     const startDate = futureDate(8);
