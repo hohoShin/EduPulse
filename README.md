@@ -214,7 +214,7 @@ main push → GitHub Actions → GHCR 이미지 빌드/푸시
 | `CORS_ORIGINS` | API CORS 허용 origin (쉼표 구분) | O (배포 시) |
 | `MODEL_VERSION` | 로딩할 모델 버전 | - (기본: 1) |
 | `VITE_API_BASE_URL` | 프론트엔드→API 주소 | - (빈 값 = 같은 origin) |
-| `VITE_ADAPTER` | 프론트엔드 어댑터 (mock/api) | - (기본: api) |
+| `VITE_ADAPTER` | 프론트엔드 어댑터 (mock/hybrid/real) | - (기본: real) |
 
 전체 목록은 `.env.example` 참고.
 

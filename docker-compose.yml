@@ -23,6 +23,8 @@ services:
       API_PORT: "8000"
       CORS_ORIGINS: ${CORS_ORIGINS:-}
       MODEL_VERSION: ${MODEL_VERSION:-1}
+    volumes:
+      - model_saved:/app/edupulse/model/saved
     ports:
       - "8000:8000"
     depends_on:
@@ -34,10 +36,11 @@ services:
       context: ./frontend
       args:
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-}
-        VITE_ADAPTER: ${VITE_ADAPTER:-api}
+        VITE_ADAPTER: ${VITE_ADAPTER:-real}
     restart: unless-stopped
     ports:
       - "3000:80"
 
 volumes:
   postgres_data:
+  model_saved:

@@ -23,6 +23,8 @@ services:
       API_PORT: "8000"
       CORS_ORIGINS: ${CORS_ORIGINS:-}
       MODEL_VERSION: ${MODEL_VERSION:-1}
+    volumes:
+      - model_saved:/app/edupulse/model/saved
     depends_on:
       db:
         condition: service_healthy
@@ -39,6 +41,7 @@ services:
 
 volumes:
   postgres_data:
+  model_saved:
 
 networks:
   proxy-net:
