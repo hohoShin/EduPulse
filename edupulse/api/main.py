@@ -16,10 +16,33 @@ from edupulse.api.routers import health, demand, schedule, marketing, simulation
 logger = logging.getLogger(__name__)
 
 
+def _auto_seed_instructors():
+    """강사 테이블이 비어있으면 시드 데이터를 자동 투입한다."""
+    try:
+        from edupulse.database import SessionLocal, engine, Base
+        from edupulse.db_models.instructor import Instructor
+
+        Base.metadata.create_all(engine)
+        session = SessionLocal()
+        try:
+            count = session.query(Instructor).count()
+            if count == 0:
+                from scripts.seed_instructors import seed_instructors
+                seed_instructors()
+                logger.info("강사 시드 데이터 자동 투입 완료")
+            else:
+                logger.info("강사 데이터 존재 (%d명), 시딩 건너뜀", count)
+        finally:
+            session.close()
+    except Exception as e:
+        logger.warning("강사 자동 시딩 실패 (무시): %s", e)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """서버 시작 시 모델 로딩."""
+    """서버 시작 시 모델 로딩 및 강사 시드 데이터 투입."""
     load_models()
+    _auto_seed_instructors()
     yield
 
 
