@@ -29,7 +29,7 @@ INTERNAL_DIR = Path("edupulse/data/raw/internal")
 EXTERNAL_DIR = Path("edupulse/data/raw/external")
 
 
-def run(n_years: int = 8, start_year: int = 2018) -> None:
+def run(n_years: int | None = None, start_year: int = 2018) -> None:
     """합성 데이터 전체 생성 및 저장."""
     INTERNAL_DIR.mkdir(parents=True, exist_ok=True)
     EXTERNAL_DIR.mkdir(parents=True, exist_ok=True)

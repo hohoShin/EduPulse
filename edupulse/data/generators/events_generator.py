@@ -71,7 +71,7 @@ def _weeks_to_next_exam(current_date: date, field: str) -> int:
 
 def generate_cert_exam_schedule(
     start_year: int = 2018,
-    n_years: int = 8,
+    n_years: int | None = None,
     seed: int = 47,
 ) -> pd.DataFrame:
     """자격증 시험 일정 합성 데이터 생성.
@@ -82,12 +82,16 @@ def generate_cert_exam_schedule(
 
     Args:
         start_year: 시작 연도
-        n_years: 생성할 연도 수
+        n_years: 생성할 연도 수. None이면 현재 연도까지 자동 계산.
         seed: API 일관성을 위한 시드 (출력에 영향 없음)
 
     Returns:
         DataFrame with columns: date, field, has_cert_exam, weeks_to_exam, ds, y
     """
+    if n_years is None:
+        from edupulse.data.generators.enrollment_generator import _default_n_years
+        n_years = _default_n_years(start_year)
+
     start_date = date(start_year, 1, 4)  # 첫 번째 월요일 근사
     end_date = date(start_year + n_years - 1, 12, 31)
 
@@ -185,7 +189,7 @@ def generate_competitor_data(
 
 def generate_seasonal_events(
     start_year: int = 2018,
-    n_years: int = 8,
+    n_years: int | None = None,
     seed: int = 47,
 ) -> pd.DataFrame:
     """계절성 이벤트 합성 데이터 생성.
@@ -196,13 +200,17 @@ def generate_seasonal_events(
 
     Args:
         start_year: 시작 연도
-        n_years: 생성할 연도 수
+        n_years: 생성할 연도 수. None이면 현재 연도까지 자동 계산.
         seed: API 일관성을 위한 시드 (출력에 영향 없음)
 
     Returns:
         DataFrame with columns: date, is_vacation, is_exam_season, is_semester_start
         (field 컬럼 없음 -- 전체 공통 적용)
     """
+    if n_years is None:
+        from edupulse.data.generators.enrollment_generator import _default_n_years
+        n_years = _default_n_years(start_year)
+
     start_date = date(start_year, 1, 4)
     end_date = date(start_year + n_years - 1, 12, 31)
 

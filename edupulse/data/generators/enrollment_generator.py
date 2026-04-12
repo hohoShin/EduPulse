@@ -62,21 +62,30 @@ def _compute_trend(year: int) -> float:
         return base_2022 * (1.05 ** (year - 2022))
 
 
+def _default_n_years(start_year: int = 2018) -> int:
+    """현재 연도까지 커버하는 최소 n_years를 계산한다."""
+    from datetime import date
+    return date.today().year - start_year + 1
+
+
 def generate_enrollment_history(
-    n_years: int = 8,
+    n_years: int | None = None,
     start_year: int = 2018,
     seed: int = 42,
 ) -> pd.DataFrame:
     """주간 단위 수강 이력 합성 데이터 생성.
 
     Args:
-        n_years: 생성할 연도 수 (기본 8년 = ~418주/분야)
+        n_years: 생성할 연도 수. None이면 현재 연도까지 자동 계산.
         start_year: 시작 연도
         seed: 재현성을 위한 난수 시드
 
     Returns:
         DataFrame with columns: date, field, cohort, enrollment_count, ds, y
     """
+    if n_years is None:
+        n_years = _default_n_years(start_year)
+
     rng = np.random.default_rng(seed)
     fields = list(BASE_WEEKLY_ENROLLMENT.keys())
 
