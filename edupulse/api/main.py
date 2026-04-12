@@ -17,21 +17,40 @@ logger = logging.getLogger(__name__)
 
 
 def _auto_generate_csv():
-    """CSV 데이터가 없으면 합성 데이터를 자동 생성한다."""
+    """CSV 데이터가 없거나 현재 연도를 커버하지 않으면 합성 데이터를 생성한다."""
     import os
+    from datetime import date
+
+    import pandas as pd
+
     from edupulse.constants import ENROLLMENT_PATH
 
-    if os.path.exists(ENROLLMENT_PATH):
-        logger.info("CSV 데이터 존재, 합성 생성 건너뜀")
+    need_generate = False
+    reason = ""
+
+    if not os.path.exists(ENROLLMENT_PATH):
+        need_generate = True
+        reason = "CSV 파일 미존재"
+    else:
+        try:
+            df = pd.read_csv(ENROLLMENT_PATH)
+            max_date = pd.to_datetime(df["date"]).max()
+            if max_date.year < date.today().year:
+                need_generate = True
+                reason = f"CSV 최대 날짜({max_date.date()})가 현재 연도({date.today().year}) 미커버"
+        except Exception as e:
+            need_generate = True
+            reason = f"CSV 읽기 실패: {e}"
+
+    if not need_generate:
+        logger.info("CSV 데이터 유효, 합성 생성 건너뜀")
         return
 
     try:
-        logger.info("CSV 데이터 없음 — 합성 데이터 자동 생성 시작")
-        from datetime import date
+        logger.info("%s — 합성 데이터 자동 생성 시작", reason)
         from edupulse.data.generators.run_all import run
-        n_years = date.today().year - 2018 + 1  # 2018~현재 연도 커버
-        run(n_years=n_years, start_year=2018)
-        logger.info("합성 데이터 자동 생성 완료 (2018~%d)", 2018 + n_years - 1)
+        run()  # n_years=None → 현재 연도까지 자동 계산
+        logger.info("합성 데이터 자동 생성 완료 (2018~%d)", date.today().year)
     except Exception as e:
         logger.warning("합성 데이터 자동 생성 실패 (무시): %s", e)
 
