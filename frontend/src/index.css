@@ -85,6 +85,8 @@ body {
   font-family: var(--font-family);
   background-color: var(--color-background);
   color: var(--color-text-main);
+  word-break: keep-all;
+  overflow-wrap: break-word;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -240,7 +242,7 @@ input, button, textarea, select {
 }
 
 .alert-panel__item--warning {
-  border-left-color: var(--color-warning-text);
+  border-left-color: #EA4334;
 }
 
 .alert-panel__item--info {
@@ -261,7 +263,7 @@ input, button, textarea, select {
 
 .alert-panel__item--warning .alert-panel__icon,
 .alert-panel__severity--warning {
-  color: var(--color-warning-text);
+  color: #EA4334;
 }
 
 .alert-panel__item--info .alert-panel__icon,
@@ -280,6 +282,8 @@ input, button, textarea, select {
   justify-content: space-between;
   gap: var(--space-3);
   margin-bottom: var(--space-1);
+  position: relative;
+  padding-right: 3.5rem;
 }
 
 .alert-panel__severity {
@@ -303,6 +307,9 @@ input, button, textarea, select {
   font-size: 0.75rem;
   color: var(--color-text-light);
   white-space: nowrap;
+  position: absolute;
+  top: 0;
+  right: 0;
 }
 
 .alert-panel__message {
@@ -509,6 +516,16 @@ input, button, textarea, select {
   border-radius: var(--radius-sm);
   box-sizing: border-box;
   text-align: center;
+}
+
+.btn.btn-primary.marketing-header-refresh-btn {
+  height: 38px;
+  min-height: 38px;
+  padding: var(--space-2) var(--space-4);
+  font-size: 0.875rem;
+  font-weight: 500;
+  border-radius: var(--radius-sm);
+  width: auto;
 }
 
 .page-subtitle.dashboard-subtitle {
