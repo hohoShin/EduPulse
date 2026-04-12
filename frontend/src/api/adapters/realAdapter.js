@@ -114,6 +114,7 @@ async function getScheduleSuggest({ courseName, field, startDate } = {}) {
       course_name: courseName || '기본과정',
       start_date: formatDate(startDate),
       predicted_enrollment: demandRaw.predicted_enrollment,
+      field: field || 'coding',
     });
 
     return createUIState({ state: 'success', data: transformScheduleResponse(scheduleRaw), isDemo: false });
@@ -189,6 +190,7 @@ async function simulateDemand({ courseName, field, startDate, tuitionFee } = {})
         course_name: courseName,
         start_date: formatDate(startDate),
         predicted_enrollment: raw.baseline?.predicted_enrollment,
+        field: field || 'coding',
       }),
     ]);
 
