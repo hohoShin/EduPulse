@@ -9,6 +9,8 @@ from edupulse.api.schemas.demand import (
     ConfidenceInterval,
     DemandRequest,
     DemandResponse,
+    DemandTrendRequest,
+    DemandTrendResponse,
 )
 from edupulse.constants import DemandTier
 from edupulse.model.predict import predict_demand as _predict_demand
@@ -46,6 +48,19 @@ def predict_demand(request: DemandRequest):
         model_used=result.model_used,
         prediction_date=datetime.now(timezone.utc),
     )
+
+
+@router.post("/demand/trend", response_model=DemandTrendResponse)
+def demand_trend(request: DemandTrendRequest):
+    """수요 트렌드 엔드포인트 — 과거 8주 실적 + 미래 4주 예측 시계열."""
+    from edupulse.api.services.demand_service import get_demand_trend
+
+    try:
+        result = get_demand_trend(request.field, request.model_name)
+    except Exception:
+        raise HTTPException(status_code=503, detail="트렌드 데이터 생성 실패")
+
+    return DemandTrendResponse(**result)
 
 
 @router.post("/demand/closure-risk", response_model=ClosureRiskResponse)

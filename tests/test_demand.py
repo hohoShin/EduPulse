@@ -167,6 +167,51 @@ def test_closure_risk_low(client, make_fake_forecaster):
     assert data["risk_level"] == "low"
 
 
+def test_demand_trend(client):
+    """수요 트렌드 엔드포인트가 12포인트 (8 actual + 4 forecast) 시계열을 반환해야 한다."""
+    response = client.post(
+        "/api/v1/demand/trend",
+        json={"field": "coding"},
+    )
+    assert response.status_code == 200, f"demand/trend 실패: {response.text}"
+    data = response.json()
+    assert data["field"] == "coding"
+    assert "points" in data
+    assert "model_used" in data
+
+    points = data["points"]
+    # 과거 8주 + 미래 4주 = 12포인트
+    assert len(points) == 12
+
+    actual_points = [p for p in points if p["category"] == "actual"]
+    forecast_points = [p for p in points if p["category"] == "forecast"]
+    assert len(actual_points) == 8
+    assert len(forecast_points) == 4
+
+    # actual 포인트는 upper/lower가 None
+    for p in actual_points:
+        assert p["upper"] is None
+        assert p["lower"] is None
+
+    # forecast 포인트는 upper/lower가 존재
+    for p in forecast_points:
+        assert p["upper"] is not None
+        assert p["lower"] is not None
+
+    # 날짜가 시간순으로 정렬되어야 한다
+    dates = [p["date"] for p in points]
+    assert dates == sorted(dates)
+
+
+def test_demand_trend_invalid_field(client):
+    """유효하지 않은 field 값에 대해 422를 반환해야 한다."""
+    response = client.post(
+        "/api/v1/demand/trend",
+        json={"field": "invalid"},
+    )
+    assert response.status_code == 422
+
+
 def test_lead_conversion(client):
     """마케팅 lead-conversion 엔드포인트가 200과 올바른 구조를 반환해야 한다."""
     response = client.post(

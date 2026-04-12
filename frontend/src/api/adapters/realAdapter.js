@@ -21,6 +21,7 @@ import {
   transformScheduleResponse,
   transformMarketingTimingResponse,
   transformOptimalStartResponse,
+  transformDemandTrendResponse,
 } from '../transformers.js';
 
 import { toErrorUIState } from '../errors.js';
@@ -291,24 +292,11 @@ async function getDashboardSummary({ field } = {}) {
 
 async function getDemandChart({ field } = {}) {
   try {
-    const raw = await apiPost('/api/v1/simulation/optimal-start', {
-      course_name: '기본과정',
+    const raw = await apiPost('/api/v1/demand/trend', {
       field: field || 'coding',
-      search_window_start: today(),
-      search_window_end: futureDate(8),
     });
 
-    const candidates = raw.top_candidates ?? [];
-    const points = candidates
-      .slice(0, 5)
-      .map((c) => createChartPoint(
-        c.date,
-        c.predicted_enrollment,
-        c.confidence_interval?.upper ?? null,
-        c.confidence_interval?.lower ?? null,
-        c.demand_tier,
-      ));
-
+    const points = transformDemandTrendResponse(raw);
     const state = points.length === 0 ? 'empty' : 'success';
     return createUIState({ state, data: points, isDemo: false });
   } catch (err) {

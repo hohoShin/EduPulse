@@ -27,6 +27,7 @@ services:
       NAVER_CLIENT_SECRET: ${NAVER_CLIENT_SECRET:-}
     volumes:
       - model_saved:/app/edupulse/model/saved
+      - csv_data:/app/edupulse/data/raw
     depends_on:
       db:
         condition: service_healthy
@@ -44,6 +45,7 @@ services:
 volumes:
   postgres_data:
   model_saved:
+  csv_data:
 
 networks:
   proxy-net:
