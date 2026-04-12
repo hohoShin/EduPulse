@@ -216,31 +216,68 @@ async function simulateDemand({ courseName, field, startDate, tuitionFee } = {})
 async function getDashboardSummary({ field } = {}) {
   try {
     const f = field || 'coding';
-    const [, compRaw, demandRaw] = await Promise.all([
-      apiPost('/api/v1/simulation/demographics', { field: f }),
+    const currentStart = futureDate(4);
+    const prevStart = futureDate(-4);
+
+    const [compRaw, demandRaw, prevDemandRaw] = await Promise.all([
       apiPost('/api/v1/simulation/competitors', { field: f }),
       apiPost('/api/v1/demand/predict', {
         course_name: '기본과정',
-        start_date: futureDate(4),
+        start_date: currentStart,
+        field: f,
+      }),
+      apiPost('/api/v1/demand/predict', {
+        course_name: '기본과정',
+        start_date: prevStart,
         field: f,
       }),
     ]);
 
+    // 수강생 변화율 (지난달 대비 %)
+    const curEnroll = demandRaw.predicted_enrollment;
+    const prevEnroll = prevDemandRaw.predicted_enrollment;
+    const enrollChange = prevEnroll > 0
+      ? Math.round(((curEnroll - prevEnroll) / prevEnroll) * 1000) / 10
+      : null;
+    const enrollDir = enrollChange > 0 ? 'up' : enrollChange < 0 ? 'down' : 'flat';
+
+    // 경쟁 강좌 변화 (이전 대비 건수 차이)
+    const compPrev = compRaw.previous_openings;
+    const compCur = compRaw.competitor_openings;
+    const compChange = compPrev != null ? compCur - compPrev : null;
+    const compDir = compChange > 0 ? 'up' : compChange < 0 ? 'down' : 'flat';
+
+    // 수요 지수 변화 (tier 순위 차이)
+    const tierRank = { High: 3, Mid: 2, Low: 1 };
+    const curRank = tierRank[demandRaw.demand_tier] ?? 0;
+    const prevRank = tierRank[prevDemandRaw.demand_tier] ?? 0;
+    const tierDiff = curRank - prevRank;
+    const tierDir = tierDiff > 0 ? 'up' : tierDiff < 0 ? 'down' : 'flat';
+
     const cards = [
       createSummaryCard(
         'total-enrollment', '예상 수강생',
-        demandRaw.predicted_enrollment, '명',
-        null, null, null, 'users',
+        curEnroll, '명',
+        enrollChange != null ? `${enrollChange > 0 ? '+' : ''}${enrollChange}%` : null,
+        enrollChange != null ? '지난달 대비' : null,
+        enrollChange != null ? enrollDir : null,
+        'users',
       ),
       createSummaryCard(
         'active-courses', '경쟁 강좌',
-        compRaw.competitor_openings, '개',
-        null, null, null, 'chart',
+        compCur, '개',
+        compChange != null ? `${compChange > 0 ? '+' : ''}${compChange}` : null,
+        compChange != null ? '이전 대비' : null,
+        compChange != null ? compDir : null,
+        'chart',
       ),
       createSummaryCard(
         'demand-index', '수요 지수',
         demandRaw.demand_tier, null,
-        null, null, null, 'trending',
+        tierDiff !== 0 ? `지난달 대비 ${tierDiff > 0 ? '+' : ''}${tierDiff}단계` : '변동 없음',
+        null,
+        tierDir,
+        'trending',
       ),
     ];
 
