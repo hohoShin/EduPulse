@@ -7,6 +7,7 @@ import {
   CartesianGrid,
   Tooltip,
   Legend,
+  ReferenceLine,
   ResponsiveContainer
 } from 'recharts';
 
@@ -22,8 +23,12 @@ const DemandChart = ({ data = [] }) => {
   // Transform data slightly to have a combined band for confidence interval
   const formattedData = data.map(d => ({
     ...d,
-    range: [d.lower, d.upper]
+    range: (d.lower != null && d.upper != null) ? [d.lower, d.upper] : null,
   }));
+
+  // Find the boundary date between actual and forecast
+  const lastActual = formattedData.filter(d => d.category === 'actual').slice(-1)[0];
+  const boundaryDate = lastActual?.date ?? null;
 
   return (
     <div className="chart-surface">
@@ -31,7 +36,9 @@ const DemandChart = ({ data = [] }) => {
         <div>
           <p className="chart-surface__eyebrow">예측 해석 가이드</p>
           <p className="chart-surface__description">
-            실선은 예상 수요, 점선은 예측 범위를 뜻합니다. 상·하한 간격이 넓을수록 운영과 마케팅 대응 폭을 더 여유 있게 잡아야 합니다.
+            실선은 주간 수요 추이(과거 실적 + 미래 예측)입니다.
+            <br />
+            점선 구간은 예측 신뢰 범위이며, 간격이 넓을수록 운영·마케팅 대응 폭을 여유 있게 잡아야 합니다.
           </p>
         </div>
       </div>
@@ -52,6 +59,14 @@ const DemandChart = ({ data = [] }) => {
               <stop offset="100%" stopColor="var(--color-info-border)" stopOpacity={0.12}/>
             </linearGradient>
           </defs>
+          {boundaryDate && (
+            <ReferenceLine
+              x={boundaryDate}
+              stroke="var(--color-text-muted)"
+              strokeDasharray="6 3"
+              label={{ value: '예측 시작', position: 'top', fill: 'var(--color-text-muted)', fontSize: 11 }}
+            />
+          )}
           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-border)" />
           <XAxis 
             dataKey="date" 
@@ -83,7 +98,7 @@ const DemandChart = ({ data = [] }) => {
             itemStyle={{ color: 'var(--color-text-main)', fontSize: '0.875rem' }}
           />
           <Legend 
-            wrapperStyle={{ paddingTop: '20px', fontSize: '12px', color: 'var(--color-text-muted)' }}
+            wrapperStyle={{ paddingTop: '10px', fontSize: '12px', color: 'var(--color-text-muted)' }}
             iconType="circle"
           />
           

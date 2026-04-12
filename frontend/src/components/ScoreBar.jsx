@@ -1,6 +1,5 @@
 const ScoreBar = ({ score, label, recommended }) => {
-  const normalizedScore = Math.min(Math.max(score ?? 0, 0), 1);
-  const percentage = Math.round(normalizedScore * 100);
+  const clampedScore = Math.min(Math.max(score ?? 0, 0), 100);
 
   return (
     <div className="score-bar">
@@ -11,7 +10,7 @@ const ScoreBar = ({ score, label, recommended }) => {
         </div>
         <div className="score-bar__meta">
           <span className="score-bar__percentage">
-            {percentage}%
+            {clampedScore}점
           </span>
           {recommended && (
             <span className="score-bar__badge">우선 추천</span>
@@ -21,7 +20,7 @@ const ScoreBar = ({ score, label, recommended }) => {
       <div className="score-bar__track">
         <div
           className="score-bar__fill"
-          style={{ width: `${percentage}%` }}
+          style={{ width: `${clampedScore}%` }}
         />
       </div>
     </div>

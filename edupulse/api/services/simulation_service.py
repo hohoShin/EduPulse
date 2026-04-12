@@ -107,8 +107,9 @@ def find_optimal_start_dates(
                     (jdf["field"] == field) & (jdf["date"] < pd.Timestamp(date_str))
                 ]
                 if len(prior) > 0:
-                    job_score = (
-                        float(prior.sort_values("date").iloc[-1]["job_count"]) / job_avg
+                    job_score = min(
+                        float(prior.sort_values("date").iloc[-1]["job_count"]) / job_avg,
+                        1.0,
                     )
             except Exception as exc:
                 logger.debug("job_score 계산 실패: %s", exc)
@@ -135,8 +136,9 @@ def find_optimal_start_dates(
             except Exception as exc:
                 logger.debug("low_competition 계산 실패: %s", exc)
 
-        # 검색 트렌드: 최근 4주 vs 이전 4주 비교
+        # 검색 트렌드: 최근 4주 vs 이전 4주 비교 + 계절성 점수
         search_trend = None
+        seasonal_search_score = 0.5  # 기본값 (중립)
         search_df = load_csv_cached(SEARCH_TRENDS_PATH)
         if search_df is not None and "date" in search_df.columns:
             try:
@@ -144,9 +146,10 @@ def find_optimal_start_dates(
 
                 sdf = search_df.copy()
                 sdf["date"] = pd.to_datetime(sdf["date"])
-                prior_s = sdf[
-                    (sdf["field"] == field) & (sdf["date"] < pd.Timestamp(date_str))
-                ].sort_values("date")
+                field_sdf = sdf[sdf["field"] == field].copy()
+
+                # 트렌드 라벨: 최근 4주 vs 이전 4주
+                prior_s = field_sdf[field_sdf["date"] < pd.Timestamp(date_str)].sort_values("date")
                 if len(prior_s) >= 8:
                     recent_4w = float(prior_s.tail(4)["search_volume"].mean())
                     prev_4w = float(prior_s.iloc[-8:-4]["search_volume"].mean())
@@ -156,8 +159,17 @@ def find_optimal_start_dates(
                         search_trend = "하락"
                     else:
                         search_trend = "안정"
+
+                # 계절성 점수: 해당 ISO 주차의 과거 평균 검색량 사용
+                target_week = monday.isocalendar()[1]
+                field_sdf["_iso_week"] = field_sdf["date"].dt.isocalendar().week.astype(int)
+                same_week = field_sdf[field_sdf["_iso_week"] == target_week]
+                if len(same_week) > 0:
+                    week_avg = float(same_week["search_volume"].mean())
+                    field_avg = max(float(field_sdf["search_volume"].mean()), 1.0)
+                    seasonal_search_score = min(week_avg / (field_avg * 2), 1.0)
             except Exception as exc:
-                logger.debug("search_trend 계산 실패: %s", exc)
+                logger.debug("search_trend/seasonal 계산 실패: %s", exc)
 
         candidates.append(
             {
@@ -167,6 +179,7 @@ def find_optimal_start_dates(
                 "_raw_enrollment": float(enrollment),
                 "_job_score": job_score,
                 "_low_competition": low_competition,
+                "_seasonal_search": seasonal_search_score,
                 "confidence_interval": confidence_interval,
                 "competitor_count": competitor_count,
                 "search_trend": search_trend,
@@ -180,10 +193,26 @@ def find_optimal_start_dates(
     max_enroll = max(c["_raw_enrollment"] for c in candidates) or 1.0
     for c in candidates:
         norm_enroll = c["_raw_enrollment"] / max_enroll
-        c["composite_score"] = (
-            norm_enroll * 0.5 + c["_job_score"] * 0.3 + c["_low_competition"] * 0.2
+        c["_raw_score"] = (
+            norm_enroll * 0.3
+            + c["_job_score"] * 0.2
+            + c["_low_competition"] * 0.2
+            + c["_seasonal_search"] * 0.3
         )
-        del c["_raw_enrollment"], c["_job_score"], c["_low_competition"]
+        del c["_raw_enrollment"], c["_job_score"], c["_low_competition"], c["_seasonal_search"]
+
+    # 전체 후보군 대비 상대 위치를 55~92 범위로 재스케일링
+    raw_scores = [c["_raw_score"] for c in candidates]
+    min_raw, max_raw = min(raw_scores), max(raw_scores)
+    DISPLAY_MIN, DISPLAY_MAX = 55, 92
+    for c in candidates:
+        if max_raw > min_raw:
+            c["composite_score"] = round(
+                DISPLAY_MIN + (c["_raw_score"] - min_raw) / (max_raw - min_raw) * (DISPLAY_MAX - DISPLAY_MIN)
+            )
+        else:
+            c["composite_score"] = round((DISPLAY_MIN + DISPLAY_MAX) / 2)
+        del c["_raw_score"]
 
     # composite_score 내림차순 정렬 후 상위 5개
     candidates.sort(key=lambda x: x["composite_score"], reverse=True)
@@ -339,25 +368,30 @@ def get_demographics_breakdown(field: str) -> dict:
             ratio = 0.0
         age_distribution.append({"group": label, "ratio": round(ratio, 4)})
 
-    # 수강 목적 분포 집계
-    if "purpose" in field_df.columns:
-        purpose_counts = field_df["purpose"].value_counts(normalize=True)
-        purpose_distribution = [
-            {"purpose": p, "ratio": round(float(r), 4)}
-            for p, r in purpose_counts.items()
-        ]
-    else:
-        purpose_distribution = []
+    # 수강 목적 분포 집계 (purpose_career / purpose_hobby / purpose_cert 비율 컬럼)
+    purpose_cols = {
+        "취업/이직": "purpose_career",
+        "취미/교양": "purpose_hobby",
+        "자격증": "purpose_cert",
+    }
+    purpose_distribution = []
+    for label, col in purpose_cols.items():
+        if col in field_df.columns:
+            ratio = float(field_df[col].mean())
+            purpose_distribution.append({"purpose": label, "ratio": round(ratio, 4)})
+
+    # enrollment 컬럼: CSV에 따라 'y' 또는 'enrollment_count'
+    enroll_col = "y" if "y" in field_df.columns else "enrollment_count"
 
     # 트렌드: 최근 절반 vs 이전 절반 수강생 수 비교
-    if "date" in field_df.columns and "enrollment_count" in field_df.columns:
+    if "date" in field_df.columns and enroll_col in field_df.columns:
         try:
             field_df["date"] = pd.to_datetime(field_df["date"])
             field_df = field_df.sort_values("date")
             mid = len(field_df) // 2
             if mid > 0:
-                older_sum = float(field_df.iloc[:mid]["enrollment_count"].sum())
-                recent_sum = float(field_df.iloc[-mid:]["enrollment_count"].sum())
+                older_sum = float(field_df.iloc[:mid][enroll_col].sum())
+                recent_sum = float(field_df.iloc[-mid:][enroll_col].sum())
                 if older_sum == 0:
                     trend = "증가" if recent_sum > 0 else "안정"
                 elif recent_sum > older_sum * 1.05:
@@ -371,8 +405,8 @@ def get_demographics_breakdown(field: str) -> dict:
             trend = "알 수 없음"
 
     # 총 수강생 수 계산
-    if "enrollment_count" in field_df.columns:
-        total_students = int(field_df["enrollment_count"].sum())
+    if enroll_col in field_df.columns:
+        total_students = int(field_df[enroll_col].sum())
     else:
         total_students = len(field_df)
 

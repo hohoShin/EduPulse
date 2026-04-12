@@ -16,10 +16,52 @@ from edupulse.api.routers import health, demand, schedule, marketing, simulation
 logger = logging.getLogger(__name__)
 
 
+def _auto_generate_csv():
+    """CSV 데이터가 없으면 합성 데이터를 자동 생성한다."""
+    import os
+    from edupulse.constants import ENROLLMENT_PATH
+
+    if os.path.exists(ENROLLMENT_PATH):
+        logger.info("CSV 데이터 존재, 합성 생성 건너뜀")
+        return
+
+    try:
+        logger.info("CSV 데이터 없음 — 합성 데이터 자동 생성 시작")
+        from edupulse.data.generators.run_all import run
+        run()
+        logger.info("합성 데이터 자동 생성 완료")
+    except Exception as e:
+        logger.warning("합성 데이터 자동 생성 실패 (무시): %s", e)
+
+
+def _auto_seed_instructors():
+    """강사 테이블이 비어있으면 시드 데이터를 자동 투입한다."""
+    try:
+        from edupulse.database import SessionLocal, engine, Base
+        from edupulse.db_models.instructor import Instructor
+
+        Base.metadata.create_all(engine)
+        session = SessionLocal()
+        try:
+            count = session.query(Instructor).count()
+            if count == 0:
+                from scripts.seed_instructors import seed_instructors
+                seed_instructors()
+                logger.info("강사 시드 데이터 자동 투입 완료")
+            else:
+                logger.info("강사 데이터 존재 (%d명), 시딩 건너뜀", count)
+        finally:
+            session.close()
+    except Exception as e:
+        logger.warning("강사 자동 시딩 실패 (무시): %s", e)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """서버 시작 시 모델 로딩."""
+    """서버 시작 시 모델 로딩 및 강사 시드 데이터 투입."""
+    _auto_generate_csv()
     load_models()
+    _auto_seed_instructors()
     yield
 
 

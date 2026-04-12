@@ -29,6 +29,31 @@ class DemandResponse(BaseModel):
     prediction_date: datetime
 
 
+class DemandTrendRequest(BaseModel):
+    """수요 트렌드 요청. 과거 8주 실적 + 미래 4주 예측 시계열."""
+
+    field: Literal["coding", "security", "game", "art"]
+    model_name: Literal["xgboost", "prophet", "ensemble"] = "ensemble"
+
+
+class TrendPoint(BaseModel):
+    """시계열 트렌드 포인트."""
+
+    date: str
+    value: float
+    upper: float | None = None
+    lower: float | None = None
+    category: Literal["actual", "forecast"]
+
+
+class DemandTrendResponse(BaseModel):
+    """수요 트렌드 응답. 과거 실적 + 미래 예측 포인트."""
+
+    field: str
+    points: list[TrendPoint]
+    model_used: str
+
+
 class ClosureRiskRequest(BaseModel):
     course_name: str
     start_date: date

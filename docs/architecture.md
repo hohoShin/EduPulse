@@ -1,7 +1,6 @@
 # EduPulse 프로젝트 아키텍처
 
-> **최종 업데이트:** 2026-04-10
-> **현재 상태:** Phase D 완료 (프론트엔드-백엔드 실시간 연동)
+> **최종 업데이트:** 2026-04-12
 
 ---
 
@@ -53,7 +52,7 @@ edupulse/                               # 프로젝트 루트
 │   │   ├── routers/
 │   │   │   ├── health.py               # GET  /api/v1/health
 │   │   │   ├── demand.py               # POST /api/v1/demand/predict, closure-risk
-│   │   │   ├── schedule.py             # POST /api/v1/schedule/suggest
+│   │   │   ├── schedule.py             # GET /schedule/instructors, POST /schedule/suggest
 │   │   │   ├── marketing.py            # POST /api/v1/marketing/timing, lead-conversion
 │   │   │   └── simulation.py           # POST /api/v1/simulation/simulate, optimal-start, demographics, competitors
 │   │   ├── schemas/                    # Pydantic 요청/응답 스키마
@@ -111,6 +110,7 @@ edupulse/                               # 프로젝트 루트
 │   └── db_models/                      # SQLAlchemy ORM 모델
 │       ├── course.py
 │       ├── enrollment.py
+│       ├── instructor.py               # 강사 정보 (DB 연동 배정용)
 │       └── prediction.py
 │
 ├── frontend/                           # 프론트엔드 (React + Vite)
@@ -174,10 +174,12 @@ edupulse/                               # 프로젝트 루트
 ├── alembic/                            # DB 마이그레이션
 │   ├── env.py
 │   └── versions/
-│       └── 001_initial.py
+│       ├── 001_initial.py
+│       └── 002_add_instructors.py      # 강사 테이블 추가
 │
 ├── scripts/                            # 실행 스크립트
 │   ├── run_pipeline.py                 # 전체 파이프라인 실행
+│   ├── seed_instructors.py             # 강사 시드 데이터 투입
 │   ├── deploy.sh                       # 배포 스크립트
 │   └── transfer_lstm.sh               # LSTM 모델 MacBook → Droplet 전송
 │
@@ -233,11 +235,12 @@ edupulse/                               # 프로젝트 루트
 ┌─────────────────────────────────────────────────────────────────┐
 │                      백엔드 API 계층                              │
 │                                                                 │
-│  FastAPI (10개 엔드포인트)                                        │
+│  FastAPI (11개 엔드포인트)                                        │
 │  ├── /health              서버 상태                               │
 │  ├── /demand/predict      수요 예측                               │
 │  ├── /demand/closure-risk 폐강 위험                               │
-│  ├── /schedule/suggest    강사/강의실 배정                         │
+│  ├── /schedule/instructors 강사 목록 조회                          │
+│  ├── /schedule/suggest    강사/강의실 배정 (DB 연동)               │
 │  ├── /marketing/timing    광고 타이밍                              │
 │  ├── /marketing/lead-conversion 전환 예측                         │
 │  ├── /simulation/simulate 시나리오 분석                            │
@@ -444,7 +447,8 @@ CSS custom properties 기반 (Tailwind 미사용):
 | `/api/v1/health` | GET | 서버/모델/DB 상태 | - |
 | `/api/v1/demand/predict` | POST | 수요 예측 | course_name, start_date, field |
 | `/api/v1/demand/closure-risk` | POST | 폐강 위험 평가 | course_name, start_date, field |
-| `/api/v1/schedule/suggest` | POST | 강사/강의실 배정 | course_name, start_date, predicted_enrollment |
+| `/api/v1/schedule/instructors` | GET | 강사 목록 조회 | field (optional) |
+| `/api/v1/schedule/suggest` | POST | 강사/강의실 배정 | course_name, start_date, predicted_enrollment, field |
 | `/api/v1/marketing/timing` | POST | 광고 타이밍 제안 | course_name, start_date, demand_tier |
 | `/api/v1/marketing/lead-conversion` | POST | 전환 예측 | field |
 | `/api/v1/simulation/simulate` | POST | 3시나리오 분석 | course_name, field, start_date, price_per_student |
@@ -493,9 +497,31 @@ CSS custom properties 기반 (Tailwind 미사용):
 }
 ```
 
+#### 강사 목록 (`/api/v1/schedule/instructors`)
+
+**Query:** `?field=coding` (optional)
+
+**응답:**
+```json
+[
+  {
+    "id": 1,
+    "name": "김코딩",
+    "field": "coding",
+    "available_slots": ["오전", "오후", "저녁"],
+    "max_classes": 3,
+    "is_active": true,
+    "created_at": "2026-04-12T00:00:00+09:00"
+  }
+]
+```
+
 #### 강사/강의실 배정 (`/api/v1/schedule/suggest`)
 
-**배정 규칙:** 반 편성 = ceil(수강생/15), 강사 = 반 수, 강의실 = ceil(반/2) (오전/오후 분할)
+**배정 규칙:** 반 편성 = ceil(수강생/30), 강사 = ceil(수강생/15)
+
+`field` 제공 시 해당 분야 강사를 DB에서 조회하여 실제 이름으로 배정한다.
+강사 부족 시 fallback 표시, `field` 미제공 시 기존 "강사 N" 패턴 유지.
 
 **응답:**
 ```json
@@ -505,13 +531,28 @@ CSS custom properties 기반 (Tailwind 미사용):
   "required_classrooms": 1,
   "assignment_plan": {
     "classes": [
-      { "class_name": "A반", "instructor_slot": "강사 1", "time_slot": "오전 (09:00-12:00)", "classroom": "강의실 1" },
-      { "class_name": "B반", "instructor_slot": "강사 2", "time_slot": "오후 (13:00-16:00)", "classroom": "강의실 1" }
+      { "class_name": "A반", "instructor_slot": "김코딩", "time_slot": "오전 (09:00-12:00)", "classroom": "강의실 1" },
+      { "class_name": "B반", "instructor_slot": "박파이썬", "time_slot": "오후 (13:00-16:00)", "classroom": "강의실 1" }
     ],
-    "summary": "30명 기준: 2개 반 편성 (반당 15명), 강사 2명, 강의실 1개 (오전/오후 분할)"
+    "summary": "총 25명 대상 1개 반 편성. 강사 2명 배정."
   }
 }
 ```
+
+#### Instructor 테이블 스키마
+
+| 컬럼 | 타입 | 설명 |
+|---|---|---|
+| `id` | Integer (PK) | 자동 증가 |
+| `name` | String(100) | 강사 이름 (가상) |
+| `field` | String(50) | 전문 분야 (coding/security/game/art) |
+| `available_slots` | JSON | 가용 시간대 배열 (["오전", "오후", "저녁"]) |
+| `max_classes` | Integer | 동시 담당 가능 반 수 (기본 2) |
+| `is_active` | Boolean | 활성 여부 (기본 true) |
+| `created_at` | DateTime(tz) | 생성 시각 |
+
+시드 데이터: 분야별 3~4명, 총 14명 가상 강사 (coding 4명, security 3명, game 4명, art 3명).
+서버 시작 시 테이블이 비어있으면 자동 투입. 수동: `python scripts/seed_instructors.py`
 
 #### 광고 타이밍 (`/api/v1/marketing/timing`)
 
@@ -567,8 +608,9 @@ composite_score = enrollment * 0.5 + job_score * 0.3 + low_competition * 0.2
 
 # 서버 시작 시 자동 실행:
 # 1. load_models() → XGBoost/LSTM/Prophet 로딩 → Ensemble 구성
-# 2. CORS 미들웨어 설정
-# 3. 5개 라우터 등록 (/api/v1 prefix)
+# 2. 강사 테이블 자동 시딩 (비어있을 경우)
+# 3. CORS 미들웨어 설정
+# 4. 5개 라우터 등록 (/api/v1 prefix)
 ```
 
 ### 6.4 모델 로딩 흐름
@@ -599,12 +641,15 @@ composite_score = enrollment * 0.5 + job_score * 0.3 + low_competition * 0.2
 ### 7.2 수요 등급 분류
 
 ```python
-DEMAND_THRESHOLDS = {"high": 6, "mid": 3}  # 주간 기준
+DEMAND_THRESHOLDS = {"high": 40, "mid": 20}  # 과정 단위 (8주 기준)
+ENROLLMENT_SCALE = 8  # 주간→과정 스케일 팩터
 
-HIGH: >= 6명/주
-MID:  >= 3명/주
-LOW:  < 3명/주
+HIGH: >= 40명/과정
+MID:  >= 20명/과정
+LOW:  < 20명/과정
 ```
+
+모델은 주간 단위로 학습되어 있으며, `predict_demand()` 반환 시 `ENROLLMENT_SCALE(×8)`을 적용하여 과정 단위로 변환한다.
 
 모델 상세 (하이퍼파라미터, 피처, 학습 방식)는 → [data-and-model.md](data-and-model.md) 참조
 

@@ -12,7 +12,7 @@ import {
 
 const SCENARIOS = [scenarioBaseline, scenarioOptimistic, scenarioPessimistic];
 
-const ScenarioCard = ({ scenario, isActive }) => {
+const ScenarioCard = ({ scenario }) => {
   const tierColor = {
     High: 'var(--color-success-text)',
     Mid: 'var(--color-warning-text)',
@@ -23,8 +23,7 @@ const ScenarioCard = ({ scenario, isActive }) => {
     <div
       className="scenario-card"
       style={{
-        borderTop: isActive ? `4px solid ${tierColor}` : '4px solid transparent',
-        opacity: isActive ? 1 : 0.8,
+        borderTop: `4px solid ${tierColor}`,
       }}
     >
       <div className="scenario-header">
@@ -180,7 +179,6 @@ const Simulator = () => {
             <ScenarioCard
               key={s.scenario}
               scenario={s}
-              isActive={s.scenario === 'baseline'}
             />
           ))}
         </div>

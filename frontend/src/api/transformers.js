@@ -162,6 +162,22 @@ export function transformMarketingTimingResponse(raw) {
 }
 
 /**
+ * Transform POST /api/v1/demand/trend → createChartPoint[] 매핑.
+ *
+ * Backend: { field, points: [{date, value, upper, lower, category}], model_used }
+ * Output: createChartPoint[] (date, value, upper, lower, category)
+ */
+export function transformDemandTrendResponse(raw) {
+  return (raw.points ?? []).map((p) => ({
+    date: p.date,
+    value: p.value,
+    upper: p.upper ?? null,
+    lower: p.lower ?? null,
+    category: p.category ?? null,
+  }));
+}
+
+/**
  * Transform POST /api/v1/simulation/optimal-start → mock fixture 형태.
  *
  * Backend: { top_candidates: [{date, predicted_enrollment, demand_tier, composite_score}] }

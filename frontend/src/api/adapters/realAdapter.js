@@ -21,6 +21,7 @@ import {
   transformScheduleResponse,
   transformMarketingTimingResponse,
   transformOptimalStartResponse,
+  transformDemandTrendResponse,
 } from '../transformers.js';
 
 import { toErrorUIState } from '../errors.js';
@@ -114,6 +115,7 @@ async function getScheduleSuggest({ courseName, field, startDate } = {}) {
       course_name: courseName || '기본과정',
       start_date: formatDate(startDate),
       predicted_enrollment: demandRaw.predicted_enrollment,
+      field: field || 'coding',
     });
 
     return createUIState({ state: 'success', data: transformScheduleResponse(scheduleRaw), isDemo: false });
@@ -189,6 +191,7 @@ async function simulateDemand({ courseName, field, startDate, tuitionFee } = {})
         course_name: courseName,
         start_date: formatDate(startDate),
         predicted_enrollment: raw.baseline?.predicted_enrollment,
+        field: field || 'coding',
       }),
     ]);
 
@@ -216,31 +219,68 @@ async function simulateDemand({ courseName, field, startDate, tuitionFee } = {})
 async function getDashboardSummary({ field } = {}) {
   try {
     const f = field || 'coding';
-    const [, compRaw, demandRaw] = await Promise.all([
-      apiPost('/api/v1/simulation/demographics', { field: f }),
+    const currentStart = futureDate(4);
+    const prevStart = futureDate(-4);
+
+    const [compRaw, demandRaw, prevDemandRaw] = await Promise.all([
       apiPost('/api/v1/simulation/competitors', { field: f }),
       apiPost('/api/v1/demand/predict', {
         course_name: '기본과정',
-        start_date: futureDate(4),
+        start_date: currentStart,
+        field: f,
+      }),
+      apiPost('/api/v1/demand/predict', {
+        course_name: '기본과정',
+        start_date: prevStart,
         field: f,
       }),
     ]);
 
+    // 수강생 변화율 (지난달 대비 %)
+    const curEnroll = demandRaw.predicted_enrollment;
+    const prevEnroll = prevDemandRaw.predicted_enrollment;
+    const enrollChange = prevEnroll > 0
+      ? Math.round(((curEnroll - prevEnroll) / prevEnroll) * 1000) / 10
+      : null;
+    const enrollDir = enrollChange > 0 ? 'up' : enrollChange < 0 ? 'down' : 'flat';
+
+    // 경쟁 강좌 변화 (이전 대비 건수 차이)
+    const compPrev = compRaw.previous_openings;
+    const compCur = compRaw.competitor_openings;
+    const compChange = compPrev != null ? compCur - compPrev : null;
+    const compDir = compChange > 0 ? 'up' : compChange < 0 ? 'down' : 'flat';
+
+    // 수요 지수 변화 (tier 순위 차이)
+    const tierRank = { High: 3, Mid: 2, Low: 1 };
+    const curRank = tierRank[demandRaw.demand_tier] ?? 0;
+    const prevRank = tierRank[prevDemandRaw.demand_tier] ?? 0;
+    const tierDiff = curRank - prevRank;
+    const tierDir = tierDiff > 0 ? 'up' : tierDiff < 0 ? 'down' : 'flat';
+
     const cards = [
       createSummaryCard(
         'total-enrollment', '예상 수강생',
-        demandRaw.predicted_enrollment, '명',
-        null, null, null, 'users',
+        curEnroll, '명',
+        enrollChange != null ? `${enrollChange > 0 ? '+' : ''}${enrollChange}%` : null,
+        enrollChange != null ? '지난달 대비' : null,
+        enrollChange != null ? enrollDir : null,
+        'users',
       ),
       createSummaryCard(
         'active-courses', '경쟁 강좌',
-        compRaw.competitor_openings, '개',
-        null, null, null, 'chart',
+        compCur, '개',
+        compChange != null ? `${compChange > 0 ? '+' : ''}${compChange}` : null,
+        compChange != null ? '이전 대비' : null,
+        compChange != null ? compDir : null,
+        'chart',
       ),
       createSummaryCard(
         'demand-index', '수요 지수',
         demandRaw.demand_tier, null,
-        null, null, null, 'trending',
+        tierDiff !== 0 ? `지난달 대비 ${tierDiff > 0 ? '+' : ''}${tierDiff}단계` : '변동 없음',
+        null,
+        tierDir,
+        'trending',
       ),
     ];
 
@@ -252,24 +292,11 @@ async function getDashboardSummary({ field } = {}) {
 
 async function getDemandChart({ field } = {}) {
   try {
-    const raw = await apiPost('/api/v1/simulation/optimal-start', {
-      course_name: '기본과정',
+    const raw = await apiPost('/api/v1/demand/trend', {
       field: field || 'coding',
-      search_window_start: today(),
-      search_window_end: futureDate(8),
     });
 
-    const candidates = raw.top_candidates ?? [];
-    const points = candidates
-      .slice(0, 5)
-      .map((c) => createChartPoint(
-        c.date,
-        c.predicted_enrollment,
-        c.confidence_interval?.upper ?? null,
-        c.confidence_interval?.lower ?? null,
-        c.demand_tier,
-      ));
-
+    const points = transformDemandTrendResponse(raw);
     const state = points.length === 0 ? 'empty' : 'success';
     return createUIState({ state, data: points, isDemo: false });
   } catch (err) {

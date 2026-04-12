@@ -53,8 +53,7 @@ def test_predict_demand_no_model(client_no_model, monkeypatch):
     def _always_fail(name, version=1):
         raise RuntimeError(f"테스트: 모델 '{name}' 로딩 불가")
 
-    monkeypatch.setattr("edupulse.api.dependencies.load_model", _always_fail, raising=False)
-    monkeypatch.setattr("edupulse.api.dependencies._load_model", _always_fail)
+    monkeypatch.setattr("edupulse.model.predict.load_model", _always_fail)
 
     response = client_no_model.post(
         "/api/v1/demand/predict",
@@ -135,7 +134,7 @@ def test_closure_risk_high(client, make_fake_forecaster):
 def test_closure_risk_mid(client, make_fake_forecaster):
     """예측 수강생이 중간(MID tier)일 때 폐강 위험도가 'medium'이어야 한다."""
     from tests.conftest import FakeForecaster
-    fake = make_fake_forecaster(enrollment=5, tier=DemandTier.MID, lower=3.0, upper=7.0)
+    fake = make_fake_forecaster(enrollment=3, tier=DemandTier.MID, lower=2.0, upper=5.0)
     _model_cache[f"xgboost_v{MODEL_VERSION}"] = fake
     _model_cache[f"ensemble_v{MODEL_VERSION}"] = fake
     _model_mtime[f"xgboost_v{MODEL_VERSION}"] = float("inf")
@@ -166,6 +165,51 @@ def test_closure_risk_low(client, make_fake_forecaster):
     assert response.status_code == 200, f"closure-risk 실패: {response.text}"
     data = response.json()
     assert data["risk_level"] == "low"
+
+
+def test_demand_trend(client):
+    """수요 트렌드 엔드포인트가 12포인트 (8 actual + 4 forecast) 시계열을 반환해야 한다."""
+    response = client.post(
+        "/api/v1/demand/trend",
+        json={"field": "coding"},
+    )
+    assert response.status_code == 200, f"demand/trend 실패: {response.text}"
+    data = response.json()
+    assert data["field"] == "coding"
+    assert "points" in data
+    assert "model_used" in data
+
+    points = data["points"]
+    # 과거 8주 + 미래 4주 = 12포인트
+    assert len(points) == 12
+
+    actual_points = [p for p in points if p["category"] == "actual"]
+    forecast_points = [p for p in points if p["category"] == "forecast"]
+    assert len(actual_points) == 8
+    assert len(forecast_points) == 4
+
+    # actual 포인트는 upper/lower가 None
+    for p in actual_points:
+        assert p["upper"] is None
+        assert p["lower"] is None
+
+    # forecast 포인트는 upper/lower가 존재
+    for p in forecast_points:
+        assert p["upper"] is not None
+        assert p["lower"] is not None
+
+    # 날짜가 시간순으로 정렬되어야 한다
+    dates = [p["date"] for p in points]
+    assert dates == sorted(dates)
+
+
+def test_demand_trend_invalid_field(client):
+    """유효하지 않은 field 값에 대해 422를 반환해야 한다."""
+    response = client.post(
+        "/api/v1/demand/trend",
+        json={"field": "invalid"},
+    )
+    assert response.status_code == 422
 
 
 def test_lead_conversion(client):

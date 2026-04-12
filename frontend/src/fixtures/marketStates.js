@@ -31,38 +31,38 @@ export const competitorsData = {
 export const optimalStartData = {
   coding: {
     top_candidates: [
-      { date: "2026-07-06", predicted_enrollment: 7, demand_tier: "High", composite_score: 0.85, competitor_count: 3, search_trend: "상승" },
-      { date: "2026-07-13", predicted_enrollment: 6, demand_tier: "High", composite_score: 0.78, competitor_count: 4, search_trend: "상승" },
-      { date: "2026-06-29", predicted_enrollment: 5, demand_tier: "Mid", composite_score: 0.65, competitor_count: 3, search_trend: "안정" },
-      { date: "2026-07-20", predicted_enrollment: 5, demand_tier: "Mid", composite_score: 0.60, competitor_count: 5, search_trend: "안정" },
-      { date: "2026-06-22", predicted_enrollment: 4, demand_tier: "Mid", composite_score: 0.52, competitor_count: 4, search_trend: "하락" },
+      { date: "2026-07-06", predicted_enrollment: 7, demand_tier: "High", composite_score: 85, competitor_count: 3, search_trend: "상승" },
+      { date: "2026-07-13", predicted_enrollment: 6, demand_tier: "High", composite_score: 78, competitor_count: 4, search_trend: "상승" },
+      { date: "2026-06-29", predicted_enrollment: 5, demand_tier: "Mid", composite_score: 65, competitor_count: 3, search_trend: "안정" },
+      { date: "2026-07-20", predicted_enrollment: 5, demand_tier: "Mid", composite_score: 60, competitor_count: 5, search_trend: "안정" },
+      { date: "2026-06-22", predicted_enrollment: 4, demand_tier: "Mid", composite_score: 52, competitor_count: 4, search_trend: "하락" },
     ]
   },
   security: {
     top_candidates: [
-      { date: "2026-08-03", predicted_enrollment: 5, demand_tier: "Mid", composite_score: 0.72, competitor_count: 2, search_trend: "상승" },
-      { date: "2026-07-27", predicted_enrollment: 4, demand_tier: "Mid", composite_score: 0.65, competitor_count: 2, search_trend: "안정" },
-      { date: "2026-08-10", predicted_enrollment: 4, demand_tier: "Mid", composite_score: 0.58, competitor_count: 3, search_trend: "안정" },
-      { date: "2026-07-20", predicted_enrollment: 3, demand_tier: "Low", composite_score: 0.45, competitor_count: 3, search_trend: "하락" },
-      { date: "2026-08-17", predicted_enrollment: 3, demand_tier: "Low", composite_score: 0.40, competitor_count: 4, search_trend: "하락" },
+      { date: "2026-08-03", predicted_enrollment: 5, demand_tier: "Mid", composite_score: 72, competitor_count: 2, search_trend: "상승" },
+      { date: "2026-07-27", predicted_enrollment: 4, demand_tier: "Mid", composite_score: 65, competitor_count: 2, search_trend: "안정" },
+      { date: "2026-08-10", predicted_enrollment: 4, demand_tier: "Mid", composite_score: 58, competitor_count: 3, search_trend: "안정" },
+      { date: "2026-07-20", predicted_enrollment: 3, demand_tier: "Low", composite_score: 45, competitor_count: 3, search_trend: "하락" },
+      { date: "2026-08-17", predicted_enrollment: 3, demand_tier: "Low", composite_score: 40, competitor_count: 4, search_trend: "하락" },
     ]
   },
   game: {
     top_candidates: [
-      { date: "2026-07-06", predicted_enrollment: 6, demand_tier: "High", composite_score: 0.80, competitor_count: 2, search_trend: "상승" },
-      { date: "2026-07-13", predicted_enrollment: 5, demand_tier: "Mid", composite_score: 0.70, competitor_count: 3, search_trend: "상승" },
-      { date: "2026-06-29", predicted_enrollment: 5, demand_tier: "Mid", composite_score: 0.62, competitor_count: 3, search_trend: "안정" },
-      { date: "2026-07-20", predicted_enrollment: 4, demand_tier: "Mid", composite_score: 0.55, competitor_count: 4, search_trend: "안정" },
-      { date: "2026-06-22", predicted_enrollment: 3, demand_tier: "Low", composite_score: 0.42, competitor_count: 5, search_trend: "하락" },
+      { date: "2026-07-06", predicted_enrollment: 6, demand_tier: "High", composite_score: 80, competitor_count: 2, search_trend: "상승" },
+      { date: "2026-07-13", predicted_enrollment: 5, demand_tier: "Mid", composite_score: 70, competitor_count: 3, search_trend: "상승" },
+      { date: "2026-06-29", predicted_enrollment: 5, demand_tier: "Mid", composite_score: 62, competitor_count: 3, search_trend: "안정" },
+      { date: "2026-07-20", predicted_enrollment: 4, demand_tier: "Mid", composite_score: 55, competitor_count: 4, search_trend: "안정" },
+      { date: "2026-06-22", predicted_enrollment: 3, demand_tier: "Low", composite_score: 42, competitor_count: 5, search_trend: "하락" },
     ]
   },
   art: {
     top_candidates: [
-      { date: "2026-09-07", predicted_enrollment: 4, demand_tier: "Mid", composite_score: 0.68, competitor_count: 2, search_trend: "상승" },
-      { date: "2026-09-14", predicted_enrollment: 4, demand_tier: "Mid", composite_score: 0.62, competitor_count: 2, search_trend: "안정" },
-      { date: "2026-08-31", predicted_enrollment: 3, demand_tier: "Low", composite_score: 0.50, competitor_count: 3, search_trend: "안정" },
-      { date: "2026-09-21", predicted_enrollment: 3, demand_tier: "Low", composite_score: 0.45, competitor_count: 3, search_trend: "하락" },
-      { date: "2026-08-24", predicted_enrollment: 2, demand_tier: "Low", composite_score: 0.35, competitor_count: 4, search_trend: "하락" },
+      { date: "2026-09-07", predicted_enrollment: 4, demand_tier: "Mid", composite_score: 68, competitor_count: 2, search_trend: "상승" },
+      { date: "2026-09-14", predicted_enrollment: 4, demand_tier: "Mid", composite_score: 62, competitor_count: 2, search_trend: "안정" },
+      { date: "2026-08-31", predicted_enrollment: 3, demand_tier: "Low", composite_score: 50, competitor_count: 3, search_trend: "안정" },
+      { date: "2026-09-21", predicted_enrollment: 3, demand_tier: "Low", composite_score: 45, competitor_count: 3, search_trend: "하락" },
+      { date: "2026-08-24", predicted_enrollment: 2, demand_tier: "Low", composite_score: 35, competitor_count: 4, search_trend: "하락" },
     ]
   },
 };

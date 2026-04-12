@@ -80,10 +80,10 @@ const Marketing = () => {
           type="button"
           onClick={fetchData}
           disabled={loading}
-          className="btn-primary"
-          style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}
+          className="btn btn-primary marketing-header-refresh-btn"
+          style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-1)', whiteSpace: 'nowrap' }}
         >
-          <svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg aria-hidden="true" focusable="false" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="23 4 23 10 17 10" /><polyline points="1 20 1 14 7 14" />
             <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
           </svg>
@@ -234,30 +234,26 @@ const Marketing = () => {
               return (
                 <div
                   key={item.demand_tier}
-                  className={`card ${isActive ? 'active-timing-card' : 'inactive-timing-card'}`}
+                  className="card timing-card"
                   style={{
                     display: 'flex',
                     flexDirection: 'column',
                     gap: 'var(--space-4)',
                     padding: 'var(--space-5)',
-                    backgroundColor: isActive ? 'var(--color-surface)' : 'var(--color-background)',
-                    borderColor: isActive ? colors.border : 'var(--color-border)',
-                    boxShadow: isActive ? `0 4px 12px -2px rgba(0,0,0,0.05), 0 0 0 2px ${colors.border}` : 'none',
-                    opacity: !isActive ? 0.6 : 1,
+                    backgroundColor: 'var(--color-surface)',
+                    borderColor: 'var(--color-border)',
                     position: 'relative',
                     overflow: 'hidden'
                   }}
                 >
-                  {isActive && (
-                    <div style={{ 
-                      position: 'absolute', 
-                      top: 0, 
-                      left: 0, 
-                      width: '4px', 
-                      height: '100%', 
-                      backgroundColor: colors.text 
-                    }} />
-                  )}
+                  <div style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '4px',
+                    height: '100%',
+                    backgroundColor: colors.text
+                  }} />
 
                   <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
                     <TierBadge tier={item.demand_tier} />

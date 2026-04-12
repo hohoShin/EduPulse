@@ -7,7 +7,13 @@ import RiskGauge from '../components/RiskGauge.jsx';
 import ScoreBar from '../components/ScoreBar.jsx';
 import { getDemographics, getCompetitors, getOptimalStart } from '../api/adapters/index.js';
 
-const PIE_COLORS = ['#4F46E5', '#92400E', '#166534'];
+const AGE_GROUP_COLORS = {
+  '20대': '#8070ED',
+  '30대': '#75C6BE',
+  '40대 이상': '#ED864C',
+};
+
+const getAgeGroupColor = (group) => AGE_GROUP_COLORS[group] || 'var(--color-text-muted)';
 
 const trendBadgeStyle = {
   증가: { backgroundColor: 'var(--color-success-bg)', color: 'var(--color-success-text)' },
@@ -32,6 +38,27 @@ const formatDelta = (current, previous, unit) => {
   if (delta === 0) return null;
   const sign = delta > 0 ? '+' : '';
   return { text: `${sign}${delta}${unit}`, up: delta > 0 };
+};
+
+const renderAgeDistributionLabel = ({ cx, cy, midAngle, outerRadius, percent, name }) => {
+  const RADIAN = Math.PI / 180;
+  const radius = outerRadius + 18;
+  const x = cx + radius * Math.cos(-midAngle * RADIAN);
+  const y = cy + radius * Math.sin(-midAngle * RADIAN);
+
+  return (
+    <text
+      x={x}
+      y={y}
+      fill={getAgeGroupColor(name)}
+      textAnchor={x > cx ? 'start' : 'end'}
+      dominantBaseline="central"
+      fontSize={12}
+      fontWeight={600}
+    >
+      {`${name} ${(percent * 100).toFixed(0)}%`}
+    </text>
+  );
 };
 
 const Market = () => {
@@ -198,10 +225,10 @@ const Market = () => {
                         cy="50%"
                         outerRadius={80}
                         dataKey="value"
-                        label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                        label={renderAgeDistributionLabel}
                       >
                         {ageDistData.map((entry, index) => (
-                          <Cell key={`age-cell-${entry.name}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                          <Cell key={`age-cell-${entry.name}`} fill={getAgeGroupColor(entry.name)} />
                         ))}
                       </Pie>
                       <Tooltip
@@ -212,7 +239,7 @@ const Market = () => {
                           '비율'
                         ]}
                       />
-                      <Legend />
+                      <Legend formatter={(value) => <span style={{ color: getAgeGroupColor(value), fontWeight: 600 }}>{value}</span>} />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
@@ -220,12 +247,12 @@ const Market = () => {
                 <div>
                   <h3 style={{ fontSize: '0.875rem', fontWeight: '600', color: 'var(--color-text-muted)', marginBottom: 'var(--space-3)' }}>수강 목적 분포</h3>
                   <ResponsiveContainer width="100%" height={250}>
-                    <BarChart data={purposeDistData} layout="vertical" margin={{ left: 10 }}>
+                    <BarChart data={purposeDistData} layout="vertical" margin={{ left: 10 }} barCategoryGap="12%">
                       <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
                       <XAxis type="number" tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }} />
                       <YAxis type="category" dataKey="name" tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }} width={80} />
                       <Tooltip cursor={{ fill: 'rgba(0,0,0,0.05)' }} />
-                      <Bar dataKey="value" fill="var(--color-primary)" radius={[0, 4, 4, 0]} />
+                      <Bar dataKey="value" barSize={12} fill="var(--color-primary)" radius={[0, 4, 4, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -312,7 +339,7 @@ const Market = () => {
               {optimalStartData?.top_candidates?.length > 0 && (() => {
                 const primaryCandidate = optimalStartData.top_candidates[0];
                 return (
-                  <div className="card dashboard-priority-card dashboard-priority-card--signal" style={{ border: '2px solid var(--color-primary)', boxShadow: '0 10px 25px -5px rgba(79, 70, 229, 0.15)' }}>
+                  <div className="card dashboard-priority-card dashboard-priority-card--signal" style={{ border: '2px solid var(--color-primary)', boxShadow: '0 10px 25px -5px rgba(79, 70, 229, 0.15)', height: '100%', display: 'flex', flexDirection: 'column' }}>
                     <div className="dashboard-priority-card__headerRow" style={{ alignItems: 'flex-start' }}>
                       <div>
                         <div style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--color-primary)', marginBottom: 'var(--space-1)' }}>★ 최우선 추천 일정</div>
@@ -353,7 +380,7 @@ const Market = () => {
                             `현재 핵심 타겟인 ${ageDistData[0].name}의 수요가 ${trendLabel === '상승' || trendLabel === '증가' ? '증가' : '안정적으로 유지'}되고 있으며, `
                           ) : ''}
                           경쟁 학원의 견제가 상대적으로 낮을 것으로 예측되는 구간입니다. 
-                          총 {primaryCandidate.composite_score}점의 시장 매력도를 보이며, <strong>가장 높은 학생 전환율</strong>이 기대되는 시점입니다.
+                          시장 매력도 {primaryCandidate.composite_score}점으로, <strong>가장 높은 학생 전환율</strong>이 기대되는 시점입니다.
                         </div>
                       </div>
                     </div>
@@ -361,7 +388,7 @@ const Market = () => {
                 );
               })()}
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)', height: '100%' }}>
                 <h3 style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--color-text-muted)', margin: 0, textTransform: 'uppercase', letterSpacing: '0.05em' }}>대안 일정</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
                   {optimalStartData?.top_candidates?.slice(1).map((candidate) => (
@@ -379,7 +406,7 @@ const Market = () => {
                       
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem' }}>
                         <span style={{ color: 'var(--color-text-muted)' }}>예상 수강: <strong style={{ color: 'var(--color-text-main)' }}>{candidate.predicted_enrollment}명</strong></span>
-                        <span style={{ color: 'var(--color-text-muted)' }}>점수: <strong style={{ color: 'var(--color-text-main)' }}>{candidate.composite_score}</strong></span>
+                        <span style={{ color: 'var(--color-text-muted)' }}>점수: <strong style={{ color: 'var(--color-text-main)' }}>{candidate.composite_score}점</strong></span>
                       </div>
                     </div>
                   ))}
