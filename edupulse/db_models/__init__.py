@@ -2,6 +2,7 @@
 from edupulse.database import Base  # noqa: F401
 from edupulse.db_models.course import Course, Cohort  # noqa: F401
 from edupulse.db_models.enrollment import Enrollment  # noqa: F401
+from edupulse.db_models.instructor import Instructor  # noqa: F401
 from edupulse.db_models.prediction import PredictionResult  # noqa: F401
 
-__all__ = ["Base", "Course", "Cohort", "Enrollment", "PredictionResult"]
+__all__ = ["Base", "Course", "Cohort", "Enrollment", "Instructor", "PredictionResult"]
