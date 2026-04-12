@@ -76,21 +76,13 @@ const chartDataByField = {
 // Field-specific alerts
 // ---------------------------------------------------------------------------
 const alertsByField = {
-  coding: [
-    createAlertItem('alert-1', '폐강 위험 감지', '고급 게임 디자인(5월 기수)의 목표 등록률이 40%입니다.', 'critical', '2026-04-09T10:00:00Z', '가격 조정'),
-    createAlertItem('alert-2', '광고 적기 임박', '사이버 보안 부트캠프 검색 트렌드가 정점에 달했습니다. 지금 광고를 시작하세요.', 'warning', '2026-04-09T09:30:00Z', '마케팅 계획 보기'),
-  ],
-  security: [
-    createAlertItem('alert-1', '수요 급상승', '사이버 보안 입문 과정 검색량이 전주 대비 23% 증가했습니다.', 'warning', '2026-04-09T11:00:00Z', '마케팅 계획 보기'),
-    createAlertItem('alert-2', '강사 부족 경보', '5월 보안 기수 수요 예측 대비 강사가 1명 부족합니다.', 'critical', '2026-04-09T08:45:00Z', '일정 조정'),
-  ],
+  coding: [],
+  security: [],
   game: [
-    createAlertItem('alert-1', '폐강 위험 감지', '게임 아트 심화반(5월 기수) 목표 등록률 38%입니다.', 'critical', '2026-04-09T10:15:00Z', '가격 조정'),
-    createAlertItem('alert-2', '수요 하락 추세', '게임 개발 과정 검색량이 3주 연속 감소하고 있습니다.', 'warning', '2026-04-09T09:00:00Z', '리포트 보기'),
+    createAlertItem('closure-1', '폐강 주의', '조기 등록 혜택 제공으로 수강생 확보를 권장합니다. 개강 2주 전 재평가 예정.', 'warning', '2026-04-09T10:00:00Z'),
   ],
   art: [
-    createAlertItem('alert-1', '광고 적기', '디지털 아트 과정 관심도가 소폭 상승 중입니다. 광고 집행을 권장합니다.', 'warning', '2026-04-09T10:30:00Z', '마케팅 계획 보기'),
-    createAlertItem('alert-2', '정원 여유', '아트 디렉션 과정(5월 기수) 등록 여유가 있습니다. 할인 프로모션을 고려하세요.', 'info', '2026-04-09T08:00:00Z', '가격 조정'),
+    createAlertItem('closure-1', '폐강 주의', '조기 등록 혜택 제공으로 수강생 확보를 권장합니다. 개강 2주 전 재평가 예정.', 'warning', '2026-04-09T10:00:00Z'),
   ],
 };
 
@@ -107,8 +99,11 @@ export const dashboardSummaryByField = (field) =>
 export const demandChartByField = (field) =>
   createUIState({ state: 'success', isDemo: true, data: chartDataByField[resolveField(field)] });
 
-export const dashboardAlertsByField = (field) =>
-  createUIState({ state: 'success', isDemo: true, data: alertsByField[resolveField(field)] });
+export const dashboardAlertsByField = (field) => {
+  const alerts = alertsByField[resolveField(field)];
+  if (alerts.length === 0) return createUIState({ state: 'empty', isDemo: true });
+  return createUIState({ state: 'success', isDemo: true, data: alerts });
+};
 
 // ---------------------------------------------------------------------------
 // Legacy single-state exports (backward compatible — default to coding)

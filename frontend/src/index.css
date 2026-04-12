@@ -975,6 +975,16 @@ select.dashboard-header-matched-control {
   margin-top: var(--space-2);
 }
 
+.trend-flat {
+  color: var(--color-text-secondary);
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: 0.875rem;
+  font-weight: 500;
+  margin-top: var(--space-2);
+}
+
 .trend-down {
   color: var(--color-error-text);
   display: flex;

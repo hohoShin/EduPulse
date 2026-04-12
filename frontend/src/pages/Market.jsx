@@ -353,7 +353,7 @@ const Market = () => {
                             `현재 핵심 타겟인 ${ageDistData[0].name}의 수요가 ${trendLabel === '상승' || trendLabel === '증가' ? '증가' : '안정적으로 유지'}되고 있으며, `
                           ) : ''}
                           경쟁 학원의 견제가 상대적으로 낮을 것으로 예측되는 구간입니다. 
-                          총 {primaryCandidate.composite_score}점의 시장 매력도를 보이며, <strong>가장 높은 학생 전환율</strong>이 기대되는 시점입니다.
+                          시장 매력도 {primaryCandidate.composite_score}점으로, <strong>가장 높은 학생 전환율</strong>이 기대되는 시점입니다.
                         </div>
                       </div>
                     </div>
@@ -379,7 +379,7 @@ const Market = () => {
                       
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem' }}>
                         <span style={{ color: 'var(--color-text-muted)' }}>예상 수강: <strong style={{ color: 'var(--color-text-main)' }}>{candidate.predicted_enrollment}명</strong></span>
-                        <span style={{ color: 'var(--color-text-muted)' }}>점수: <strong style={{ color: 'var(--color-text-main)' }}>{candidate.composite_score}</strong></span>
+                        <span style={{ color: 'var(--color-text-muted)' }}>점수: <strong style={{ color: 'var(--color-text-main)' }}>{candidate.composite_score}점</strong></span>
                       </div>
                     </div>
                   ))}
