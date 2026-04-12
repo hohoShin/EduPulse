@@ -423,6 +423,8 @@ def predict_demand(
     field: str,
     model_name: str = "ensemble",
     version: int = MODEL_VERSION,
+    *,
+    raw_float: bool = False,
 ) -> PredictionResult:
     """API에서 호출하는 수요 예측 진입점.
 
@@ -446,7 +448,11 @@ def predict_demand(
     result = model.predict(features)
 
     # 주간→과정 단위 스케일 보정 (합성 데이터가 주간 단위이므로)
-    result.predicted_enrollment = int(result.predicted_enrollment * ENROLLMENT_SCALE)
+    if raw_float:
+        raw = result.raw_predicted if result.raw_predicted else float(result.predicted_enrollment)
+        result.predicted_enrollment = round(raw * ENROLLMENT_SCALE, 1)
+    else:
+        result.predicted_enrollment = int(result.predicted_enrollment * ENROLLMENT_SCALE)
     result.confidence_lower = result.confidence_lower * ENROLLMENT_SCALE
     result.confidence_upper = result.confidence_upper * ENROLLMENT_SCALE
     result.demand_tier = classify_demand(result.predicted_enrollment)

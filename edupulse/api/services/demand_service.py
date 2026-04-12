@@ -33,8 +33,16 @@ def _build_weekly_series(field: str) -> pd.Series | None:
     return series
 
 
+def _prev_monday(d: date) -> date:
+    """주어진 날짜 이전(또는 당일) 가장 가까운 월요일."""
+    return d - timedelta(days=d.weekday())
+
+
 def get_demand_trend(field: str, model_name: str = "ensemble") -> dict:
-    """CSV 마지막 8주 실적 + 그 뒤 4주 예측 주간 시계열 반환.
+    """과거 8주 실적 + 오늘 이후 4주 예측 주간 시계열 반환.
+
+    CSV 데이터가 오늘보다 과거에서 끝나는 경우, CSV 끝 ~ 오늘 구간도
+    forecast로 채워서 시계열이 현재 시점까지 이어지도록 한다.
 
     Args:
         field: 분야 ('coding', 'security', 'game', 'art')
@@ -43,22 +51,18 @@ def get_demand_trend(field: str, model_name: str = "ensemble") -> dict:
     Returns:
         {"field", "points": [...], "model_used"} dict
     """
+    today = date.today()
+    current_monday = _prev_monday(today)
     weekly = _build_weekly_series(field)
 
-    # --- 과거 8주 실적 ---
-    historical_points = _build_historical_points(weekly)
+    # --- 과거 8주 실적 (오늘 기준) ---
+    historical_points = _build_historical_points(weekly, current_monday)
 
-    # forecast 시작점: 실적 마지막 주 다음 월요일 (데이터 없으면 이번 주 월요일)
-    if weekly is not None and len(weekly) > 0:
-        last_data_monday = weekly.index[-1].date()
-        forecast_start = last_data_monday + timedelta(weeks=1)
-    else:
-        today = date.today()
-        forecast_start = today - timedelta(days=today.weekday())
-
-    # --- 미래 4주 예측 ---
+    # --- 미래 4주 예측 (오늘 기준) ---
+    forecast_start = current_monday
+    forecast_end = current_monday + timedelta(weeks=3)
     forecast_points, model_used = _build_forecast_points(
-        field, model_name, forecast_start,
+        field, model_name, forecast_start, forecast_end,
     )
 
     return {
@@ -68,41 +72,46 @@ def get_demand_trend(field: str, model_name: str = "ensemble") -> dict:
     }
 
 
-def _build_historical_points(weekly: pd.Series | None) -> list[dict]:
-    """주간 시리즈에서 마지막 8주 실적 포인트 생성."""
+def _build_historical_points(
+    weekly: pd.Series | None, current_monday: date,
+) -> list[dict]:
+    """오늘 기준 과거 8주 중 CSV 데이터가 존재하는 주만 actual 포인트로 반환."""
     if weekly is None or weekly.empty:
         return []
 
-    last_8 = weekly.tail(8)
     points: list[dict] = []
-    for ts, count in last_8.items():
-        points.append({
-            "date": str(ts.date()),
-            "value": round(float(count) * ENROLLMENT_SCALE, 1),
-            "upper": None,
-            "lower": None,
-            "category": "actual",
-        })
+    for i in range(8, 0, -1):
+        week_date = current_monday - timedelta(weeks=i)
+        ts = pd.Timestamp(week_date)
+        if ts in weekly.index:
+            value = float(weekly[ts]) * ENROLLMENT_SCALE
+            points.append({
+                "date": str(week_date),
+                "value": round(value, 1),
+                "upper": None,
+                "lower": None,
+                "category": "actual",
+            })
     return points
 
 
 def _build_forecast_points(
-    field: str, model_name: str, forecast_start: date,
+    field: str, model_name: str, forecast_start: date, forecast_end: date,
 ) -> tuple[list[dict], str]:
-    """미래 4주 예측 포인트. predict_demand() 호출 (ENROLLMENT_SCALE 이미 적용됨).
+    """forecast_start부터 forecast_end까지 주간 예측 포인트 생성.
 
     Returns:
         (포인트 리스트, 실제 사용된 모델명) 튜플
     """
     points: list[dict] = []
     actual_model = model_name
+    week_date = forecast_start
 
-    for i in range(4):
-        week_date = forecast_start + timedelta(weeks=i)
+    while week_date <= forecast_end:
         try:
             result = predict_demand(
                 "트렌드예측", str(week_date), field,
-                model_name=model_name,
+                model_name=model_name, raw_float=True,
             )
             actual_model = result.model_used
             points.append({
@@ -113,7 +122,7 @@ def _build_forecast_points(
                 "category": "forecast",
             })
         except Exception as e:
-            logger.warning("미래 %d주차 예측 실패: %s", i, e)
+            logger.warning("%s 예측 실패: %s", week_date, e)
             points.append({
                 "date": str(week_date),
                 "value": 0.0,
@@ -121,5 +130,6 @@ def _build_forecast_points(
                 "lower": None,
                 "category": "forecast",
             })
+        week_date += timedelta(weeks=1)
 
     return points, actual_model

@@ -27,9 +27,11 @@ def _auto_generate_csv():
 
     try:
         logger.info("CSV 데이터 없음 — 합성 데이터 자동 생성 시작")
+        from datetime import date
         from edupulse.data.generators.run_all import run
-        run()
-        logger.info("합성 데이터 자동 생성 완료")
+        n_years = date.today().year - 2018 + 1  # 2018~현재 연도 커버
+        run(n_years=n_years, start_year=2018)
+        logger.info("합성 데이터 자동 생성 완료 (2018~%d)", 2018 + n_years - 1)
     except Exception as e:
         logger.warning("합성 데이터 자동 생성 실패 (무시): %s", e)
 

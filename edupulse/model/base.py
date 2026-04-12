@@ -24,6 +24,7 @@ class PredictionResult:
     confidence_upper: float
     model_used: str
     mape: float | None
+    raw_predicted: float = 0.0
 
 
 @dataclass

@@ -487,6 +487,7 @@ class LSTMForecaster(BaseForecaster):
             confidence_upper=confidence_upper,
             model_used="lstm",
             mape=self._mape,
+            raw_predicted=raw_pred,
         )
 
     def evaluate(self, df: pd.DataFrame, n_splits: int = 5) -> dict:

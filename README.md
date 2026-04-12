@@ -45,6 +45,7 @@
 
 - **용도:** 모델 아키텍처, 전처리 파이프라인, API 통합의 정상 동작 검증
 - **한계:** MAPE 수치는 시스템 검증 목적이며, 실전 예측 성능과 다를 수 있음
+- **모델 정확도:** 합성 데이터 기반으로 학습된 모델이므로, 예측값의 절대적 정확도보다는 시스템 파이프라인의 정상 동작 검증에 초점을 두고 있습니다. 실제 학원 운영 데이터로 재학습 시 예측 정확도가 크게 향상될 수 있습니다.
 - **전환:** 실제 데이터 확보 시 CSV 파일 교체만으로 전환 가능 (파이프라인 재사용)
 - **상세 문서:** [`docs/data-and-model.md`](docs/data-and-model.md)
 
@@ -249,10 +250,12 @@ Base URL: `http://<서버IP>:8000/api/v1`
 |--------|------|------|
 | GET | `/health` | 서버 상태 + 로딩된 모델 목록 |
 | POST | `/demand/predict` | 수요 예측 (등급 + 예상 인원 + 신뢰 구간) |
+| POST | `/demand/trend` | 수요 트렌드 (과거 8주 실적 + 미래 4주 예측) |
 | POST | `/demand/closure-risk` | 폐강 위험도 평가 |
-| POST | `/demand/lead-conversion` | 잠재 수강생 전환 예측 |
+| GET | `/schedule/instructors` | 사용 가능한 강사 목록 조회 |
 | POST | `/schedule/suggest` | 강사·강의실 배정 제안 |
 | POST | `/marketing/timing` | 광고 타이밍 + 얼리버드 전략 추천 |
+| POST | `/marketing/lead-conversion` | 잠재 수강생 전환 예측 |
 | POST | `/simulation/simulate` | 신규 강좌 수요 시뮬레이션 |
 | POST | `/simulation/optimal-start` | 최적 개강일 탐색 |
 | POST | `/simulation/demographics` | 연령·목적별 수요 분석 |
@@ -314,12 +317,18 @@ edupulse/                              # 프로젝트 루트
 │   │   │   ├── demand.py              # 수요 예측 엔드포인트
 │   │   │   ├── schedule.py            # 강사 스케줄링 엔드포인트
 │   │   │   ├── marketing.py           # 마케팅 타이밍 엔드포인트
+│   │   │   ├── simulation.py          # 시뮬레이션 엔드포인트
 │   │   │   └── health.py             # 헬스체크 엔드포인트
-│   │   └── schemas/                   # Pydantic 요청/응답 스키마
-│   │       ├── common.py              # 공통 스키마
-│   │       ├── demand.py
-│   │       ├── marketing.py
-│   │       └── schedule.py
+│   │   ├── schemas/                   # Pydantic 요청/응답 스키마
+│   │   │   ├── common.py              # 공통 스키마
+│   │   │   ├── demand.py
+│   │   │   ├── marketing.py
+│   │   │   ├── schedule.py
+│   │   │   └── simulation.py          # 시뮬레이션 스키마
+│   │   └── services/                  # 비즈니스 로직 계층
+│   │       ├── demand_service.py      # 수요 트렌드 시계열 서비스
+│   │       ├── marketing_service.py   # 잠재 수강생 전환 분석
+│   │       └── simulation_service.py  # 시뮬레이션·경쟁 분석
 │   │
 │   ├── collection/                    # 데이터 수집
 │   │   └── api/                       # 외부 API 연동
@@ -333,6 +342,8 @@ edupulse/                              # 프로젝트 루트
 │   │   ├── generators/                # 합성 데이터 생성기
 │   │   │   ├── enrollment_generator.py  # 수강 이력 합성
 │   │   │   ├── external_generator.py    # 외부 데이터 합성
+│   │   │   ├── internal_generator.py    # 내부 데이터 합성 (상담, 프로필, 웹로그)
+│   │   │   ├── events_generator.py      # 이벤트 데이터 합성 (자격증, 경쟁, 계절)
 │   │   │   └── run_all.py             # 전체 합성 데이터 생성 실행
 │   │   ├── raw/                       # 수집 원본 데이터
 │   │   │   ├── internal/              # 내부 데이터 (수강 이력, 상담 로그 등)
@@ -343,7 +354,8 @@ edupulse/                              # 프로젝트 루트
 │   ├── db_models/                     # SQLAlchemy DB 모델
 │   │   ├── course.py                  # 강좌 모델
 │   │   ├── enrollment.py              # 수강 등록 모델
-│   │   └── prediction.py              # 예측 결과 모델
+│   │   ├── prediction.py              # 예측 결과 모델
+│   │   └── instructor.py              # 강사 모델
 │   │
 │   ├── model/                         # AI 모델링
 │   │   ├── base.py                    # 모델 베이스 클래스
@@ -368,10 +380,12 @@ edupulse/                              # 프로젝트 루트
 │
 ├── alembic/                           # DB 마이그레이션
 │   └── versions/
-│       └── 001_initial.py             # 초기 테이블 생성
+│       ├── 001_initial.py             # 초기 테이블 생성
+│       └── 002_add_instructors.py     # 강사 테이블 추가
 │
 ├── scripts/                           # 실행 스크립트
-│   └── run_pipeline.py                # 전체 파이프라인 실행
+│   ├── run_pipeline.py                # 전체 파이프라인 실행
+│   └── seed_instructors.py            # 강사 DB 시딩
 │
 ├── tests/                             # 테스트
 │   ├── conftest.py                    # 테스트 픽스처
@@ -400,7 +414,12 @@ edupulse/                              # 프로젝트 루트
 │   │   └── components/
 │   │       ├── DemandChart.jsx    # 수요 예측 시각화
 │   │       ├── AlertPanel.jsx     # 폐강 리스크·광고 알림
-│   │       └── StatusPanel.jsx    # 시스템 상태 표시
+│   │       ├── StatusPanel.jsx    # 시스템 상태 표시
+│   │       ├── FieldSelector.jsx  # 분야 선택기
+│   │       ├── TierBadge.jsx      # 수요 등급 배지
+│   │       ├── RiskGauge.jsx      # 위험도 게이지
+│   │       ├── ScoreBar.jsx       # 점수 바 시각화
+│   │       └── Layout.jsx         # 공통 레이아웃
 │   └── README.md
 ```
 
