@@ -66,7 +66,13 @@ const Dashboard = () => {
   const primaryAction = primaryAlert?.actionLabel
     ? {
         title: primaryAlert.actionLabel,
-        detail: `${primaryAlert.title}에 맞춰 ${PILLAR_COPY.마케팅_매출_연계} 또는 ${PILLAR_COPY.운영_효율화} 대응을 시작하세요.`,
+        detail: (
+          <>
+            {primaryAlert.title}에 맞춰 {PILLAR_COPY.마케팅_매출_연계} 또는
+            <br />
+            {PILLAR_COPY.운영_효율화} 대응을 시작하세요.
+          </>
+        ),
       }
     : {
         title: '다음 액션: 운영 현황 점검',
@@ -97,9 +103,13 @@ const Dashboard = () => {
         </div>
       )}
       <p className="dashboard-summary-card__description">
-        {card.id === 'demand-index'
-          ? `${PILLAR_COPY.전략_기획}과 ${PILLAR_COPY.마케팅_매출_연계} 우선순위를 정할 때 기준이 되는 현재 수요 신호입니다.`
-          : `${PILLAR_COPY.운영_효율화} 관점에서 지금 확인해야 할 기본 운영 지표입니다.`}
+        {card.id === 'demand-index' ? (
+          <>
+            {PILLAR_COPY.전략_기획}과 {PILLAR_COPY.마케팅_매출_연계} 우선순위를 정할 때<br />기준이 되는 현재 수요 신호입니다.
+          </>
+        ) : (
+          `${PILLAR_COPY.운영_효율화} 관점에서 지금 확인해야 할 기본 운영 지표입니다.`
+        )}
       </p>
     </div>
   );
@@ -137,19 +147,21 @@ const Dashboard = () => {
       <div className="page-header">
         <div>
           <h1 className="page-title">대시보드</h1>
-          <p className="page-subtitle">{PILLAR_COPY.운영_효율화}, {PILLAR_COPY.마케팅_매출_연계}, {PILLAR_COPY.전략_기획}을 한 화면에서 연결하는 운영 커맨드 센터</p>
+          <p className="page-subtitle dashboard-subtitle">{PILLAR_COPY.운영_효율화}, {PILLAR_COPY.마케팅_매출_연계}, {PILLAR_COPY.전략_기획}을 한 화면에서 연결하는 운영 커맨드 센터</p>
         </div>
         <div className="dashboard-header-controls">
           <FieldSelector
             value={field}
             onChange={setField}
+            className="dashboard-header-select-wrapper"
+            selectClassName="dashboard-header-matched-control"
             style={{ marginBottom: 0 }}
           />
           <button
             type="button"
-            className="btn"
+            className="btn dashboard-header-matched-control dashboard-header-matched-btn"
             onClick={() => setRefreshKey(k => k + 1)}
-            style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)', whiteSpace: 'nowrap', marginBottom: 'var(--space-4)' }}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-1)', whiteSpace: 'nowrap' }}
             title="데이터 새로고침"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -189,7 +201,7 @@ const Dashboard = () => {
           <div className="dashboard-priority-grid">
             <div className="card dashboard-priority-card dashboard-priority-card--signal">
               <p className="dashboard-priority-card__eyebrow">현재 수요 신호</p>
-              <div className="dashboard-priority-card__body">
+              <div className="dashboard-priority-card__body" style={{ flex: 1 }}>
                 {demandSignalCard ? renderSummaryMetric(demandSignalCard) : (
                   <StatusPanel variant="empty" message="수요 신호를 계산할 수 없습니다." />
                 )}
@@ -208,14 +220,20 @@ const Dashboard = () => {
             </div>
 
             <div className="card dashboard-priority-card dashboard-priority-card--action">
-              <p className="dashboard-priority-card__eyebrow">다음 액션</p>
-              <h3 className="dashboard-action-title">{primaryAction.title}</h3>
-              <p className="dashboard-action-description">{primaryAction.detail}</p>
-              <div className="dashboard-action-links">
+              <div>
+                <p className="dashboard-priority-card__eyebrow">다음 액션</p>
+                <h3 className="dashboard-action-title">{primaryAction.title}</h3>
+                <p className="dashboard-action-description">{primaryAction.detail}</p>
+              </div>
+              <div className="dashboard-action-links" style={{ marginTop: 'auto' }}>
                 <button type="button" className="btn btn-primary dashboard-action-button" onClick={() => setRefreshKey((k) => k + 1)}>
                   추천 상태 다시 확인
                 </button>
-                <p className="dashboard-action-helper">바로가기 대신 현재 페이지에서 상태를 새로 불러와 우선순위를 다시 판단합니다.</p>
+                <p className="dashboard-action-helper">
+                  바로가기 대신 현재 페이지에서 상태를 새로 불러와
+                  <br />
+                  우선순위를 다시 판단합니다.
+                </p>
               </div>
             </div>
           </div>
