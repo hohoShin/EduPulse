@@ -38,13 +38,13 @@
 
 ---
 
-## 합성 데이터 안내
+## 데이터 안내
 
-> 본 프로젝트는 현재 **합성(Synthetic) 데이터**로 개발 및 검증을 진행하고 있습니다.
-> 실제 학원 운영 데이터를 확보할 수 없는 상황이므로, 현실적인 패턴(계절성, 코로나 충격, 성장 트렌드)을 시뮬레이션한 합성 데이터를 사용합니다.
+> 본 프로젝트는 **합성(Synthetic) 데이터 + 실제 외부 API 데이터**를 혼합하여 개발 및 검증을 진행하고 있습니다.
+> 학원 내부 운영 데이터(수강 이력, 상담 로그 등)는 합성 데이터를 사용하며, 검색 트렌드는 **네이버 데이터랩 API**에서 실제 데이터를 수집합니다.
 
-- **용도:** 모델 아키텍처, 전처리 파이프라인, API 통합의 정상 동작 검증
-- **한계:** MAPE 수치는 시스템 검증 목적이며, 실전 예측 성능과 다를 수 있음
+- **검색 트렌드 (실제 데이터):** 네이버 데이터랩 API를 통해 분야별 키워드 검색량을 주기적으로 수집하여 모델 학습에 반영합니다. 수집 실패 시 캐시 → 합성 데이터 순으로 폴백합니다.
+- **내부 데이터 (합성):** 수강 이력, 상담 로그, 학생 프로필 등은 현실적인 패턴(계절성, 코로나 충격, 성장 트렌드)을 시뮬레이션한 합성 데이터를 사용합니다.
 - **모델 정확도:** 합성 데이터 기반으로 학습된 모델이므로, 예측값의 절대적 정확도보다는 시스템 파이프라인의 정상 동작 검증에 초점을 두고 있습니다. 실제 학원 운영 데이터로 재학습 시 예측 정확도가 크게 향상될 수 있습니다.
 - **전환:** 실제 데이터 확보 시 CSV 파일 교체만으로 전환 가능 (파이프라인 재사용)
 - **상세 문서:** [`docs/data-and-model.md`](docs/data-and-model.md)
@@ -66,7 +66,8 @@
 - 웹/앱 로그 : 페이지뷰, 장바구니 이탈, 광고 클릭률
 
 **외부 데이터 (공개 수집)**
-- 네이버 데이터랩 / Google Trends : 키워드 검색량 트렌드
+- **네이버 데이터랩 API** : 분야별 키워드 검색량 트렌드 (**실제 API 연동 완료**, 일일 1000건 쿼터 관리)
+- Google Trends : 캐시 전용 (향후 연구용, 파이프라인 미사용)
 - 채용 공고 크롤링 : 직군별 공고 수 변화 (코딩·보안·게임·아트)
 - 자격증 시험 일정 : 정보처리기사, 정보보안기사 등
 - 경쟁 학원 모니터링 : 개강 일정·수강료 크롤링
@@ -103,7 +104,7 @@
 |---|---|---|
 | 수강 이력 | ★★★★★ | 낮음 (자체 보유) |
 | 상담 데이터 | ★★★★ | 낮음 (자체 보유) |
-| 검색 트렌드 | ★★★★ | 낮음 (무료 API) |
+| 검색 트렌드 | ★★★★ | 낮음 (네이버 API 연동 완료) |
 | 채용 공고량 | ★★★★ | 중간 (크롤링) |
 | 계절·시기 | ★★★ | 낮음 (공개 데이터) |
 | 경쟁 학원 동향 | ★★★ | 중간 (크롤링) |
@@ -116,12 +117,12 @@
 
 | 영역 | 기술 |
 |---|---|
-| 데이터 수집 | Python (BeautifulSoup, Selenium), Naver API, Google Trends API |
+| 데이터 수집 | Python, Naver DataLab API |
 | 전처리 | Pandas, NumPy, scikit-learn |
 | 모델링 | Prophet, PyTorch (LSTM), XGBoost |
 | 서빙 | FastAPI, Docker |
-| 시각화 | React, Recharts, Plotly |
-| 데이터 저장 | PostgreSQL |
+| 프론트엔드 | React, Recharts |
+| 데이터 저장 | PostgreSQL, CSV |
 
 ## 🖥️ 실행 환경
 
@@ -462,6 +463,9 @@ python -m scripts.run_pipeline --model all --version 1
 # 1단계: 합성 데이터 생성
 python -m edupulse.data.generators.run_all
 
+# 검색 트렌드 실제 데이터 수집 (네이버 API, .env에 NAVER_CLIENT_ID/SECRET 필요)
+python -m edupulse.collection.api.collect_search_trends
+
 # 2단계: 개별 모델 학습
 python -m edupulse.model.train --model xgboost --version 1
 python -m edupulse.model.train --model prophet --version 1
@@ -513,7 +517,7 @@ pytest tests/test_demand.py -v
 | 합성 데이터 | `edupulse/data/raw/internal/consultation_logs.csv` | 상담 로그 | 합성 생성기 구현 완료 |
 | 합성 데이터 | `edupulse/data/raw/internal/student_profiles.csv` | 학생 프로필 | 합성 생성기 구현 완료 |
 | 합성 데이터 | `edupulse/data/raw/internal/web_logs.csv` | 웹/앱 로그 | 합성 생성기 구현 완료 |
-| 합성 데이터 | `edupulse/data/raw/external/search_trends.csv` | 검색 트렌드 | 합성 생성기 구현 완료 |
+| 실제/합성 | `edupulse/data/raw/external/search_trends.csv` | 검색 트렌드 | 네이버 API 연동 완료 (폴백: 캐시 → 합성) |
 | 합성 데이터 | `edupulse/data/raw/external/job_postings.csv` | 채용 공고 | 합성 생성기 구현 완료 |
 | 합성 데이터 | `edupulse/data/raw/external/cert_exam_schedule.csv` | 자격증 시험 일정 | 합성 생성기 구현 완료 |
 | 합성 데이터 | `edupulse/data/raw/external/competitor_data.csv` | 경쟁 학원 데이터 | 합성 생성기 구현 완료 |
