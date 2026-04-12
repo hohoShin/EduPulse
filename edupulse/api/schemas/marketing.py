@@ -19,6 +19,8 @@ class MarketingResponse(BaseModel):
     ad_launch_weeks_before: int
     earlybird_duration_days: int
     discount_rate: float
+    ad_launch_date: date
+    earlybird_end_date: date
 
 
 class LeadConversionRequest(BaseModel):

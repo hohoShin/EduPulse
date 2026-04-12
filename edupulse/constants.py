@@ -6,12 +6,15 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
 class DemandTier(str, Enum):
-    HIGH = "High"    # >= 6명 (주간 기준)
-    MID = "Mid"      # >= 3명 (주간 기준)
-    LOW = "Low"      # < 3명 (주간 기준)
+    HIGH = "High"    # >= 40명 (과정 단위)
+    MID = "Mid"      # >= 20명 (과정 단위)
+    LOW = "Low"      # < 20명 (과정 단위)
 
 
-DEMAND_THRESHOLDS = {"high": 6, "mid": 3}
+# 합성 데이터가 주간 단위이므로, 8주 과정 기준 스케일 팩터
+ENROLLMENT_SCALE = 8
+
+DEMAND_THRESHOLDS = {"high": 40, "mid": 20}
 
 # 분야 → 인코딩 값 (알파벳 순 고정). 모든 모듈이 이 매핑을 단일 진실 소스로 사용한다.
 FIELD_ENCODING = {"art": 0, "coding": 1, "game": 2, "security": 3}

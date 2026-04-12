@@ -641,12 +641,15 @@ composite_score = enrollment * 0.5 + job_score * 0.3 + low_competition * 0.2
 ### 7.2 수요 등급 분류
 
 ```python
-DEMAND_THRESHOLDS = {"high": 6, "mid": 3}  # 주간 기준
+DEMAND_THRESHOLDS = {"high": 40, "mid": 20}  # 과정 단위 (8주 기준)
+ENROLLMENT_SCALE = 8  # 주간→과정 스케일 팩터
 
-HIGH: >= 6명/주
-MID:  >= 3명/주
-LOW:  < 3명/주
+HIGH: >= 40명/과정
+MID:  >= 20명/과정
+LOW:  < 20명/과정
 ```
+
+모델은 주간 단위로 학습되어 있으며, `predict_demand()` 반환 시 `ENROLLMENT_SCALE(×8)`을 적용하여 과정 단위로 변환한다.
 
 모델 상세 (하이퍼파라미터, 피처, 학습 방식)는 → [data-and-model.md](data-and-model.md) 참조
 

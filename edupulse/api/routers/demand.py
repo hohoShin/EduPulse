@@ -1,9 +1,8 @@
 """수요 예측 API 라우터."""
 from datetime import datetime, timezone
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
-from edupulse.api.dependencies import get_model
 from edupulse.api.schemas.demand import (
     ClosureRiskRequest,
     ClosureRiskResponse,
@@ -12,12 +11,12 @@ from edupulse.api.schemas.demand import (
     DemandResponse,
 )
 from edupulse.constants import DemandTier
-from edupulse.model.predict import build_features
+from edupulse.model.predict import predict_demand as _predict_demand
 
 router = APIRouter()
 
-# 최소 개강 인원 기준 (폐강 위험 계산용)
-_MIN_ENROLLMENT = 5
+# 최소 개강 인원 기준 (폐강 위험 계산용, 과정 단위)
+_MIN_ENROLLMENT = 15
 
 
 @router.post("/demand/predict", response_model=DemandResponse)
@@ -25,11 +24,15 @@ def predict_demand(request: DemandRequest):
     """수요 예측 엔드포인트.
 
     request.model_name으로 모델을 선택한다 (기본값: 'ensemble').
-    선택한 모델이 미로딩 상태이면 503을 반환한다.
+    predict_demand()를 직접 호출하여 스케일 보정이 적용된 결과를 반환한다.
     """
-    model = get_model(request.model_name)
-    features = build_features(request.course_name, str(request.start_date), request.field)
-    result = model.predict(features)
+    try:
+        result = _predict_demand(
+            request.course_name, str(request.start_date), request.field,
+            model_name=request.model_name,
+        )
+    except Exception:
+        raise HTTPException(status_code=503, detail=f"Model '{request.model_name}' not loaded")
 
     return DemandResponse(
         course_name=request.course_name,
@@ -54,9 +57,10 @@ def assess_closure_risk(request: ClosureRiskRequest) -> ClosureRiskResponse:
     - medium: MID 티어 또는 신뢰 구간 하한이 경계 수준
     - low: HIGH 티어이고 신뢰 구간 하한이 충분
     """
-    model = get_model(request.model_name)
-    features = build_features(request.course_name, str(request.start_date), request.field)
-    result = model.predict(features)
+    result = _predict_demand(
+        request.course_name, str(request.start_date), request.field,
+        model_name=request.model_name,
+    )
 
     enrollment = result.predicted_enrollment
     lower = result.confidence_lower

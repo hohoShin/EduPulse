@@ -53,8 +53,7 @@ def test_predict_demand_no_model(client_no_model, monkeypatch):
     def _always_fail(name, version=1):
         raise RuntimeError(f"테스트: 모델 '{name}' 로딩 불가")
 
-    monkeypatch.setattr("edupulse.api.dependencies.load_model", _always_fail, raising=False)
-    monkeypatch.setattr("edupulse.api.dependencies._load_model", _always_fail)
+    monkeypatch.setattr("edupulse.model.predict.load_model", _always_fail)
 
     response = client_no_model.post(
         "/api/v1/demand/predict",
@@ -135,7 +134,7 @@ def test_closure_risk_high(client, make_fake_forecaster):
 def test_closure_risk_mid(client, make_fake_forecaster):
     """예측 수강생이 중간(MID tier)일 때 폐강 위험도가 'medium'이어야 한다."""
     from tests.conftest import FakeForecaster
-    fake = make_fake_forecaster(enrollment=5, tier=DemandTier.MID, lower=3.0, upper=7.0)
+    fake = make_fake_forecaster(enrollment=3, tier=DemandTier.MID, lower=2.0, upper=5.0)
     _model_cache[f"xgboost_v{MODEL_VERSION}"] = fake
     _model_cache[f"ensemble_v{MODEL_VERSION}"] = fake
     _model_mtime[f"xgboost_v{MODEL_VERSION}"] = float("inf")

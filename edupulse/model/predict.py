@@ -14,6 +14,8 @@ import pandas as pd
 
 from edupulse.constants import (
     PROJECT_ROOT,
+    ENROLLMENT_SCALE,
+    classify_demand,
     ENROLLMENT_PATH as _ENROLLMENT_PATH,
     SEARCH_TRENDS_PATH as _SEARCH_TRENDS_PATH,
     JOB_POSTINGS_PATH as _JOB_POSTINGS_PATH,
@@ -441,4 +443,12 @@ def predict_demand(
     """
     model = load_model(model_name, version)
     features = build_features(course_name, start_date, field)
-    return model.predict(features)
+    result = model.predict(features)
+
+    # 주간→과정 단위 스케일 보정 (합성 데이터가 주간 단위이므로)
+    result.predicted_enrollment = int(result.predicted_enrollment * ENROLLMENT_SCALE)
+    result.confidence_lower = result.confidence_lower * ENROLLMENT_SCALE
+    result.confidence_upper = result.confidence_upper * ENROLLMENT_SCALE
+    result.demand_tier = classify_demand(result.predicted_enrollment)
+
+    return result

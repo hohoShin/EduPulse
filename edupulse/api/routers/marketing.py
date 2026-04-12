@@ -1,4 +1,6 @@
 """마케팅 타이밍 API 라우터 (rule-based MVP)."""
+from datetime import timedelta
+
 from fastapi import APIRouter
 
 from edupulse.api.schemas.marketing import (
@@ -25,12 +27,17 @@ def suggest_marketing_timing(request: MarketingRequest):
     """수요 등급에 따른 광고 타이밍 및 할인율 제안."""
     rule = _MARKETING_RULES[request.demand_tier]
 
+    ad_launch_date = request.start_date - timedelta(weeks=rule["weeks_before"])
+    earlybird_end_date = request.start_date - timedelta(days=rule["earlybird_days"])
+
     return MarketingResponse(
         course_name=request.course_name,
         demand_tier=request.demand_tier,
         ad_launch_weeks_before=rule["weeks_before"],
         earlybird_duration_days=rule["earlybird_days"],
         discount_rate=rule["discount_rate"],
+        ad_launch_date=ad_launch_date,
+        earlybird_end_date=earlybird_end_date,
     )
 
 
