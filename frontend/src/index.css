@@ -582,19 +582,19 @@ select.dashboard-header-matched-control {
   height: 100%;
 }
 
-.dashboard-priority-card--signal {
+.card.dashboard-priority-card {
+  transition: all var(--transition-normal);
+}
+
+.card.dashboard-priority-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
   border-color: rgba(79, 70, 229, 0.18);
   background: linear-gradient(180deg, rgba(79, 70, 229, 0.05), rgba(79, 70, 229, 0.01));
 }
 
-.dashboard-priority-card--risk {
-  background-color: var(--color-surface);
-}
-
 .dashboard-priority-card--action {
   justify-content: space-between;
-  border-color: rgba(30, 58, 138, 0.12);
-  background-color: var(--color-info-bg);
 }
 
 .dashboard-priority-card__headerRow {
@@ -1239,20 +1239,10 @@ select.dashboard-header-matched-control {
 
 
 /* Marketing Timing Cards */
-.active-timing-card {
+.timing-card {
   transition: all var(--transition-normal);
-  background-color: var(--color-surface);
 }
-.active-timing-card:hover {
+.timing-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 0 0 2px var(--color-success-border);
-}
-.inactive-timing-card {
-  transition: all var(--transition-normal);
-  background-color: var(--color-background);
-  opacity: 0.6;
-}
-.inactive-timing-card:hover {
-  opacity: 0.8;
-  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
 }

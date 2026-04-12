@@ -234,30 +234,26 @@ const Marketing = () => {
               return (
                 <div
                   key={item.demand_tier}
-                  className={`card ${isActive ? 'active-timing-card' : 'inactive-timing-card'}`}
+                  className="card timing-card"
                   style={{
                     display: 'flex',
                     flexDirection: 'column',
                     gap: 'var(--space-4)',
                     padding: 'var(--space-5)',
-                    backgroundColor: isActive ? 'var(--color-surface)' : 'var(--color-background)',
-                    borderColor: isActive ? colors.border : 'var(--color-border)',
-                    boxShadow: isActive ? `0 4px 12px -2px rgba(0,0,0,0.05), 0 0 0 2px ${colors.border}` : 'none',
-                    opacity: !isActive ? 0.6 : 1,
+                    backgroundColor: 'var(--color-surface)',
+                    borderColor: 'var(--color-border)',
                     position: 'relative',
                     overflow: 'hidden'
                   }}
                 >
-                  {isActive && (
-                    <div style={{ 
-                      position: 'absolute', 
-                      top: 0, 
-                      left: 0, 
-                      width: '4px', 
-                      height: '100%', 
-                      backgroundColor: colors.text 
-                    }} />
-                  )}
+                  <div style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '4px',
+                    height: '100%',
+                    backgroundColor: colors.text
+                  }} />
 
                   <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
                     <TierBadge tier={item.demand_tier} />
