@@ -76,13 +76,21 @@ const chartDataByField = {
 // Field-specific alerts
 // ---------------------------------------------------------------------------
 const alertsByField = {
-  coding: [],
-  security: [],
-  game: [
+  coding: [
     createAlertItem('closure-1', '폐강 주의', '조기 등록 혜택 제공으로 수강생 확보를 권장합니다. 개강 2주 전 재평가 예정.', 'warning', '2026-04-09T10:00:00Z'),
+    createAlertItem('system-1', '강사 배정 필요', '수요 예측 대비 강사 1명이 추가 배정되어야 합니다.', 'info', '2026-04-09T09:30:00Z'),
+  ],
+  security: [
+    createAlertItem('closure-1', '폐강 주의', '조기 등록 혜택 제공으로 수강생 확보를 권장합니다. 개강 2주 전 재평가 예정.', 'warning', '2026-04-09T10:00:00Z'),
+    createAlertItem('system-1', '수요 급상승 감지', '검색량이 전주 대비 23% 증가했습니다. 마케팅 집행을 권장합니다.', 'info', '2026-04-09T09:00:00Z'),
+  ],
+  game: [
+    createAlertItem('closure-1', '폐강 위험', '마케팅 강화 및 조기 등록 할인 적용을 권장합니다. 개강 4주 전까지 최소 인원 미달 시 폐강을 검토하세요.', 'critical', '2026-04-09T10:00:00Z'),
+    createAlertItem('system-1', '수요 하락 추세', '검색량이 3주 연속 감소하고 있습니다. 가격 조정을 검토하세요.', 'warning', '2026-04-09T09:00:00Z'),
   ],
   art: [
     createAlertItem('closure-1', '폐강 주의', '조기 등록 혜택 제공으로 수강생 확보를 권장합니다. 개강 2주 전 재평가 예정.', 'warning', '2026-04-09T10:00:00Z'),
+    createAlertItem('system-1', '광고 적기 도래', '관심도가 소폭 상승 중입니다. 광고 집행을 권장합니다.', 'info', '2026-04-09T09:30:00Z'),
   ],
 };
 

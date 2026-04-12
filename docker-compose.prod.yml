@@ -23,6 +23,8 @@ services:
       API_PORT: "8000"
       CORS_ORIGINS: ${CORS_ORIGINS:-}
       MODEL_VERSION: ${MODEL_VERSION:-1}
+      NAVER_CLIENT_ID: ${NAVER_CLIENT_ID:-}
+      NAVER_CLIENT_SECRET: ${NAVER_CLIENT_SECRET:-}
     volumes:
       - model_saved:/app/edupulse/model/saved
     depends_on:
