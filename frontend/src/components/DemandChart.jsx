@@ -31,7 +31,9 @@ const DemandChart = ({ data = [] }) => {
         <div>
           <p className="chart-surface__eyebrow">예측 해석 가이드</p>
           <p className="chart-surface__description">
-            실선은 예상 수요, 점선은 예측 범위를 뜻합니다. 상·하한 간격이 넓을수록 운영과 마케팅 대응 폭을 더 여유 있게 잡아야 합니다.
+            실선은 예상 수요, 점선은 예측 범위를 뜻합니다.
+            <br />
+            상·하한 간격이 넓을수록 운영과 마케팅 대응 폭을 더 여유 있게 잡아야 합니다.
           </p>
         </div>
       </div>
@@ -83,7 +85,7 @@ const DemandChart = ({ data = [] }) => {
             itemStyle={{ color: 'var(--color-text-main)', fontSize: '0.875rem' }}
           />
           <Legend 
-            wrapperStyle={{ paddingTop: '20px', fontSize: '12px', color: 'var(--color-text-muted)' }}
+            wrapperStyle={{ paddingTop: '10px', fontSize: '12px', color: 'var(--color-text-muted)' }}
             iconType="circle"
           />
           

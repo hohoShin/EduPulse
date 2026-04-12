@@ -49,6 +49,20 @@ const ACTION_ROUTE_BY_LABEL = {
 
 const resolveActionTarget = (alert) => alert.actionUrl || ACTION_ROUTE_BY_LABEL[alert.actionLabel] || null;
 
+const renderAlertMessage = (message) => {
+  if (message && typeof message === 'object' && 'firstLine' in message && 'secondLine' in message) {
+    return (
+      <>
+        <span className="alert-panel__message-line-nowrap">{message.firstLine}</span>
+        <br />
+        <span className="alert-panel__message-line-nowrap">{message.secondLine}</span>
+      </>
+    );
+  }
+
+  return message;
+};
+
 const AlertPanel = ({ alerts = [] }) => {
   if (!alerts || alerts.length === 0) {
     return (
@@ -79,7 +93,7 @@ const AlertPanel = ({ alerts = [] }) => {
                 </div>
                 <span className="alert-panel__timestamp">방금 전</span>
               </div>
-              <p className="alert-panel__message">{alert.message}</p>
+              <p className="alert-panel__message">{renderAlertMessage(alert.message)}</p>
             </div>
             {alert.actionLabel && actionTarget && (
               <Link
