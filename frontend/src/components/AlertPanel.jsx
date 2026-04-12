@@ -51,13 +51,7 @@ const resolveActionTarget = (alert) => alert.actionUrl || ACTION_ROUTE_BY_LABEL[
 
 const renderAlertMessage = (message) => {
   if (message && typeof message === 'object' && 'firstLine' in message && 'secondLine' in message) {
-    return (
-      <>
-        <span className="alert-panel__message-line-nowrap">{message.firstLine}</span>
-        <br />
-        <span className="alert-panel__message-line-nowrap">{message.secondLine}</span>
-      </>
-    );
+    return `${message.firstLine} ${message.secondLine}`;
   }
 
   return message;
