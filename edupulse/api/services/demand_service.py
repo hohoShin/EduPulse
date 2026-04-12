@@ -111,7 +111,7 @@ def _build_forecast_points(
         try:
             result = predict_demand(
                 "트렌드예측", str(week_date), field,
-                model_name=model_name,
+                model_name=model_name, raw_float=True,
             )
             actual_model = result.model_used
             points.append({

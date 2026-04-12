@@ -37,6 +37,7 @@ class FakeForecaster(BaseForecaster):
             confidence_upper=self._upper,
             model_used="fake",
             mape=None,
+            raw_predicted=float(self._enrollment),
         )
 
     def evaluate(self, df: pd.DataFrame, n_splits: int = 5) -> dict:
@@ -83,7 +84,7 @@ def client():
     _model_mtime도 함께 설정하여 mtime 기반 리로딩이 발생하지 않도록 한다.
     """
     with TestClient(app) as c:
-        for model_name in ("xgboost", "ensemble"):
+        for model_name in ("xgboost", "ensemble", "prophet"):
             key = f"{model_name}_v{MODEL_VERSION}"
             _model_cache[key] = FakeForecaster()
             _model_mtime[key] = float("inf")  # mtime 리로딩 방지

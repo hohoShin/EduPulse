@@ -144,7 +144,7 @@ class EnsembleForecaster(BaseForecaster):
         for name, model in self._models.items():
             try:
                 result = model.predict(features)
-                enrollments.append(float(result.predicted_enrollment))
+                enrollments.append(result.raw_predicted or float(result.predicted_enrollment))
                 lowers.append(result.confidence_lower)
                 uppers.append(result.confidence_upper)
                 if result.mape is not None:
@@ -176,6 +176,7 @@ class EnsembleForecaster(BaseForecaster):
             confidence_upper=confidence_upper,
             model_used=model_used,
             mape=avg_mape,
+            raw_predicted=avg_enrollment,
         )
 
     def evaluate(self, df: pd.DataFrame, n_splits: int = 5) -> dict:
